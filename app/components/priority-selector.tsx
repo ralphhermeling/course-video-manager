@@ -5,29 +5,30 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import type { LessonPriority } from "@/features/ghost-lessons/ghost-lessons-reducer";
 
-const PRIORITY_STYLES = {
+export type Priority = 1 | 2 | 3;
+
+const PRIORITY_STYLES: Record<Priority, string> = {
   1: "bg-red-500/20 text-red-600",
   2: "bg-yellow-500/20 text-yellow-600",
   3: "bg-sky-500/20 text-sky-500",
-} as const;
+};
 
-const PRIORITY_DOT_COLORS = {
+const PRIORITY_DOT_COLORS: Record<Priority, string> = {
   1: "bg-red-500",
   2: "bg-yellow-500",
   3: "bg-sky-500",
-} as const;
+};
 
-const PRIORITY_LABELS = {
+const PRIORITY_LABELS: Record<Priority, string> = {
   1: "P1 — High",
   2: "P2 — Medium",
   3: "P3 — Low",
-} as const;
+};
 
 interface PrioritySelectorProps {
-  priority: LessonPriority;
-  onSelect: (priority: LessonPriority) => void;
+  priority: Priority;
+  onSelect?: (priority: Priority) => void;
   readOnly?: boolean;
 }
 
@@ -43,12 +44,13 @@ export function PrioritySelector({
         PRIORITY_STYLES[priority]
       )}
       title={readOnly ? `P${priority}` : "Click to set priority"}
+      onClick={(e) => e.stopPropagation()}
     >
       P{priority}
     </button>
   );
 
-  if (readOnly) {
+  if (readOnly || !onSelect) {
     return trigger;
   }
 
@@ -57,7 +59,7 @@ export function PrioritySelector({
       <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
         {trigger}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="min-w-[120px]">
+      <DropdownMenuContent align="start" className="min-w-[140px]">
         {([1, 2, 3] as const).map((p) => (
           <DropdownMenuItem
             key={p}

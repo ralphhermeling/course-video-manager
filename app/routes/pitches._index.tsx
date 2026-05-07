@@ -7,10 +7,8 @@ import { Lightbulb, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { data, Link, useFetcher, useNavigate } from "react-router";
 import type { Route } from "./+types/pitches._index";
-import {
-  PriorityPill,
-  StatusIconBadge,
-} from "@/features/pitches-prototype/shared";
+import { PrioritySelector } from "@/components/priority-selector";
+import { StatusIconBadge } from "@/components/status-icon-badge";
 
 export const meta: Route.MetaFunction = () => {
   return [{ title: "CVM - Pitches" }];
@@ -137,7 +135,7 @@ function PitchRow({
         >
           {pitch.title || "Untitled Pitch"}
         </Link>
-        <PriorityPill priority={pitch.priority as 1 | 2 | 3} readOnly />
+        <PrioritySelector priority={pitch.priority as 1 | 2 | 3} readOnly />
       </div>
       {pitch.description && (
         <p className="ml-12 mr-4 pb-3 text-xs text-muted-foreground line-clamp-2">

@@ -3,11 +3,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  PriorityPill,
+  PrioritySelector,
+  type Priority,
+} from "@/components/priority-selector";
+import {
   StatusIconBadge,
-  type PitchPriority,
   type PitchStatus,
-} from "@/features/pitches-prototype/shared";
+} from "@/components/status-icon-badge";
 import { DBFunctionsService } from "@/services/db-service.server";
 import { runtimeLive } from "@/services/layer.server";
 import { Console, Effect } from "effect";
@@ -150,8 +152,8 @@ export default function PitchDetailRoute(props: Route.ComponentProps) {
   const [status, setStatus] = useState<PitchStatus>(
     initialPitch.status as PitchStatus
   );
-  const [priority, setPriority] = useState<PitchPriority>(
-    initialPitch.priority as PitchPriority
+  const [priority, setPriority] = useState<Priority>(
+    initialPitch.priority as Priority
   );
 
   const { save, saveState } = usePitchAutoSave(initialPitch.id);
@@ -224,7 +226,7 @@ export default function PitchDetailRoute(props: Route.ComponentProps) {
               );
             }}
           />
-          <PriorityPill
+          <PrioritySelector
             priority={priority}
             onSelect={(p) => {
               setPriority(p);
