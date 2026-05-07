@@ -127,6 +127,28 @@ describe("updatePitchField", () => {
   );
 });
 
+describe("listPitches", () => {
+  it.effect("returns empty array when no pitches exist", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const list = yield* db.listPitches();
+      expect(list).toEqual([]);
+    }).pipe(Effect.provide(testLayer))
+  );
+});
+
+describe("updatePitchField", () => {
+  it.effect("fails with NotFoundError for non-existent pitch", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const result = yield* db
+        .updatePitchField("nonexistent-id", "title", "Nope")
+        .pipe(Effect.flip);
+      expect(result._tag).toBe("NotFoundError");
+    }).pipe(Effect.provide(testLayer))
+  );
+});
+
 describe("deletePitch", () => {
   it.effect("removes the pitch row", () =>
     Effect.gen(function* () {
@@ -136,6 +158,13 @@ describe("deletePitch", () => {
 
       const result = yield* db.getPitch(created.id).pipe(Effect.flip);
       expect(result._tag).toBe("NotFoundError");
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("does not error when deleting a non-existent pitch", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      yield* db.deletePitch("nonexistent-id");
     }).pipe(Effect.provide(testLayer))
   );
 

@@ -5,8 +5,20 @@ import type { Route } from "./+types/api.pitches.$pitchId.update";
 import { withDatabaseDump } from "@/services/dump-service";
 import { data } from "react-router";
 
+const updatableFields = [
+  "title",
+  "description",
+  "youtubeTitle",
+  "youtubeThumbnailDescription",
+  "newsletterTitle",
+  "tweet",
+  "status",
+  "priority",
+  "archived",
+] as const;
+
 const updateSchema = Schema.Struct({
-  field: Schema.String,
+  field: Schema.Literal(...updatableFields),
   value: Schema.String,
 });
 

@@ -65,6 +65,7 @@ function usePitchAutoSave(pitchId: string) {
       setSaveState("pending");
 
       timerRef.current = setTimeout(() => {
+        timerRef.current = null;
         fetcher.submit(
           { field, value },
           {
