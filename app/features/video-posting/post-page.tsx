@@ -42,10 +42,14 @@ import {
 import type { CourseStructure } from "@/components/video-context-panel";
 import type { SectionWithWordCount } from "@/features/article-writer/types";
 import { ThumbnailSelector } from "./post-page-thumbnail-selector";
+import { validateYoutubeTitle } from "./post-page-validation";
 
 const POST_TITLE_STORAGE_KEY = (videoId: string) => `post-title-${videoId}`;
 const POST_DESCRIPTION_STORAGE_KEY = (videoId: string) =>
   `post-description-${videoId}`;
+const POST_NEWSLETTER_TITLE_STORAGE_KEY = (videoId: string) =>
+  `post-newsletter-title-${videoId}`;
+const POST_TWEET_STORAGE_KEY = (videoId: string) => `post-tweet-${videoId}`;
 const YOUTUBE_VIDEO_ID_STORAGE_KEY = (videoId: string) =>
   `youtube-video-id-${videoId}`;
 
@@ -59,6 +63,9 @@ export function PostPage({
   courseStructure,
   includeCourseStructure,
   clipSections,
+  pitchYoutubeTitle,
+  pitchNewsletterTitle,
+  pitchTweet,
 }: {
   videoId: string;
   isYoutubeAuthenticated: boolean;
@@ -69,19 +76,39 @@ export function PostPage({
   courseStructure: CourseStructure | null;
   includeCourseStructure: boolean;
   clipSections: SectionWithWordCount[];
+  pitchYoutubeTitle: string | null;
+  pitchNewsletterTitle: string | null;
+  pitchTweet: string | null;
 }) {
-  // Title and description with localStorage persistence
+  // Title and description with localStorage persistence, pitch pre-fill as fallback
   const [title, setTitle] = useState(() => {
     if (typeof localStorage !== "undefined") {
-      return localStorage.getItem(POST_TITLE_STORAGE_KEY(videoId)) ?? "";
+      const stored = localStorage.getItem(POST_TITLE_STORAGE_KEY(videoId));
+      if (stored) return stored;
     }
-    return "";
+    return pitchYoutubeTitle ?? "";
   });
   const [description, setDescription] = useState(() => {
     if (typeof localStorage !== "undefined") {
       return localStorage.getItem(POST_DESCRIPTION_STORAGE_KEY(videoId)) ?? "";
     }
     return "";
+  });
+  const [newsletterTitle, setNewsletterTitle] = useState(() => {
+    if (typeof localStorage !== "undefined") {
+      const stored = localStorage.getItem(
+        POST_NEWSLETTER_TITLE_STORAGE_KEY(videoId)
+      );
+      if (stored) return stored;
+    }
+    return pitchNewsletterTitle ?? "";
+  });
+  const [tweet, setTweet] = useState(() => {
+    if (typeof localStorage !== "undefined") {
+      const stored = localStorage.getItem(POST_TWEET_STORAGE_KEY(videoId));
+      if (stored) return stored;
+    }
+    return pitchTweet ?? "";
   });
 
   // Auto-save title and description to localStorage
@@ -96,6 +123,21 @@ export function PostPage({
       localStorage.setItem(POST_DESCRIPTION_STORAGE_KEY(videoId), description);
     }
   }, [description, videoId]);
+
+  useEffect(() => {
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(
+        POST_NEWSLETTER_TITLE_STORAGE_KEY(videoId),
+        newsletterTitle
+      );
+    }
+  }, [newsletterTitle, videoId]);
+
+  useEffect(() => {
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(POST_TWEET_STORAGE_KEY(videoId), tweet);
+    }
+  }, [tweet, videoId]);
 
   // AI generation state
   const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
@@ -247,12 +289,19 @@ export function PostPage({
     setPendingGeneratedText("");
   };
 
+  const titleValidationError = validateYoutubeTitle(title);
   const selectedThumbnail = thumbnails.find((t) => t.selectedForUpload);
 
   const [isCheckingExport, setIsCheckingExport] = useState(false);
 
   const handleUpload = async () => {
-    if (!title.trim() || !description.trim() || !selectedThumbnail) return;
+    if (
+      !title.trim() ||
+      !description.trim() ||
+      !selectedThumbnail ||
+      titleValidationError
+    )
+      return;
 
     setIsCheckingExport(true);
     try {
@@ -400,13 +449,16 @@ export function PostPage({
               )}
             </Button>
           </div>
-          <Input
+          <Textarea
             id="title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Enter video title..."
-            className="text-lg"
+            className="text-lg min-h-[60px] resize-y"
           />
+          {titleValidationError && (
+            <p className="text-sm text-destructive">{titleValidationError}</p>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -458,6 +510,27 @@ export function PostPage({
           </Button>
         </div>
 
+        <div className="space-y-2">
+          <Label htmlFor="newsletterTitle">Newsletter Title</Label>
+          <Input
+            id="newsletterTitle"
+            value={newsletterTitle}
+            onChange={(e) => setNewsletterTitle(e.target.value)}
+            placeholder="Enter newsletter title..."
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="tweet">Tweet</Label>
+          <Textarea
+            id="tweet"
+            value={tweet}
+            onChange={(e) => setTweet(e.target.value)}
+            placeholder="Enter tweet..."
+            className="min-h-[80px] resize-y"
+          />
+        </div>
+
         {/* Visibility */}
         <div className="flex items-center gap-2">
           <Label htmlFor="visibility">Visibility</Label>
@@ -489,7 +562,8 @@ export function PostPage({
               isCheckingExport ||
               !title.trim() ||
               !description.trim() ||
-              !selectedThumbnail
+              !selectedThumbnail ||
+              !!titleValidationError
             }
             className="w-full"
             size="lg"

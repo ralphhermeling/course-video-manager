@@ -50,6 +50,12 @@ export const loader = async (args: Route.LoaderArgs) => {
     const videoExists = yield* publishService.isExported(video);
     const isYoutubeAuthenticated = youtubeAuth !== null;
 
+    const pitch = video.pitchId
+      ? yield* db
+          .getPitch(video.pitchId)
+          .pipe(Effect.catchTag("NotFoundError", () => Effect.succeed(null)))
+      : null;
+
     const lesson = video.lesson;
 
     // Build transcript from clips and clip sections
@@ -171,6 +177,9 @@ export const loader = async (args: Route.LoaderArgs) => {
         courseStructure: null as CourseStructure | null,
         isYoutubeAuthenticated,
         thumbnails: videoThumbnails,
+        pitchYoutubeTitle: pitch?.youtubeTitle ?? null,
+        pitchNewsletterTitle: pitch?.newsletterTitle ?? null,
+        pitchTweet: pitch?.tweet ?? null,
       };
     }
 
@@ -256,6 +265,9 @@ export const loader = async (args: Route.LoaderArgs) => {
       courseStructure,
       isYoutubeAuthenticated,
       thumbnails: videoThumbnails,
+      pitchYoutubeTitle: pitch?.youtubeTitle ?? null,
+      pitchNewsletterTitle: pitch?.newsletterTitle ?? null,
+      pitchTweet: pitch?.tweet ?? null,
     };
   }).pipe(
     Effect.tapErrorCause((e) => Console.dir(e, { depth: null })),
@@ -301,6 +313,9 @@ export default function PostPageRoute(props: Route.ComponentProps) {
     isYoutubeAuthenticated,
     thumbnails,
     videoExists,
+    pitchYoutubeTitle,
+    pitchNewsletterTitle,
+    pitchTweet,
   } = props.loaderData;
 
   // Context panel state
@@ -448,6 +463,9 @@ export default function PostPageRoute(props: Route.ComponentProps) {
             courseStructure={courseStructure}
             includeCourseStructure={includeCourseStructure}
             clipSections={clipSections}
+            pitchYoutubeTitle={pitchYoutubeTitle}
+            pitchNewsletterTitle={pitchNewsletterTitle}
+            pitchTweet={pitchTweet}
           />
         </div>
       </div>
