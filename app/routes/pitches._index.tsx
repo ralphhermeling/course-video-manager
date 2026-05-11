@@ -5,6 +5,7 @@ import {
   type Priority,
 } from "@/components/priority-selector";
 import {
+  PITCH_STATUS_ORDER,
   StatusIconBadge,
   STATUS_META,
   type PitchStatus,
@@ -52,10 +53,22 @@ export const meta: Route.MetaFunction = () => {
 
 type PitchPriority = 1 | 2 | 3;
 
-const ALL_STATUSES: PitchStatus[] = ["idle", "scheduled", "cancelled"];
+const ALL_STATUSES: PitchStatus[] = [...PITCH_STATUS_ORDER];
+
+const DEFAULT_STATUS_FILTER: PitchStatus[] = [
+  "idle",
+  "scheduled",
+  "shipped-to-youtube",
+];
+
+function isDefaultStatusFilter(values: PitchStatus[]): boolean {
+  if (values.length !== DEFAULT_STATUS_FILTER.length) return false;
+  const set = new Set(values);
+  return DEFAULT_STATUS_FILTER.every((s) => set.has(s));
+}
 
 function parseStatusParam(raw: string | null): PitchStatus[] {
-  if (!raw) return ["idle"];
+  if (!raw) return [...DEFAULT_STATUS_FILTER];
   const values = [
     ...new Set(
       raw
@@ -65,7 +78,7 @@ function parseStatusParam(raw: string | null): PitchStatus[] {
         )
     ),
   ];
-  return values.length > 0 ? values : ["idle"];
+  return values.length > 0 ? values : [...DEFAULT_STATUS_FILTER];
 }
 
 function parsePriorityParam(raw: string | null): PitchPriority[] {
@@ -191,9 +204,7 @@ export default function PitchesIndexRoute(props: Route.ComponentProps) {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
 
-      const isDefaultStatus =
-        nextStatus.length === 1 && nextStatus[0] === "idle";
-      if (isDefaultStatus) {
+      if (isDefaultStatusFilter(nextStatus)) {
         next.delete("status");
       } else {
         next.set("status", nextStatus.join(","));
@@ -217,13 +228,11 @@ export default function PitchesIndexRoute(props: Route.ComponentProps) {
   };
 
   const clearAll = () => {
-    updateFilters(["idle"], []);
+    updateFilters([...DEFAULT_STATUS_FILTER], []);
   };
 
   const hasActiveFilters =
-    priorityFilter.length > 0 ||
-    statusFilter.length !== 1 ||
-    !statusFilter.includes("idle");
+    priorityFilter.length > 0 || !isDefaultStatusFilter(statusFilter);
 
   return (
     <div className="flex h-screen bg-background text-foreground">
@@ -356,7 +365,7 @@ function StatusFilterDropdown({
     const next = value.includes(s)
       ? value.filter((x) => x !== s)
       : [...value, s];
-    onChange(next.length > 0 ? next : ["idle"]);
+    onChange(next.length > 0 ? next : [...DEFAULT_STATUS_FILTER]);
   };
 
   const summary =

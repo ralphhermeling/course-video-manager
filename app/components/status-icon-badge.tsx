@@ -1,4 +1,10 @@
-import { CalendarClock, Lightbulb, XCircle } from "lucide-react";
+import {
+  CalendarClock,
+  CheckCircle2,
+  Lightbulb,
+  XCircle,
+  Youtube,
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -7,7 +13,20 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
-export type PitchStatus = "idle" | "scheduled" | "cancelled";
+export type PitchStatus =
+  | "idle"
+  | "scheduled"
+  | "shipped-to-youtube"
+  | "shipped"
+  | "cancelled";
+
+export const PITCH_STATUS_ORDER: readonly PitchStatus[] = [
+  "idle",
+  "scheduled",
+  "shipped-to-youtube",
+  "shipped",
+  "cancelled",
+] as const;
 
 export const STATUS_META: Record<
   PitchStatus,
@@ -25,6 +44,16 @@ export const STATUS_META: Record<
   scheduled: {
     label: "Scheduled",
     icon: CalendarClock,
+    iconWrap: "bg-muted text-muted-foreground",
+  },
+  "shipped-to-youtube": {
+    label: "Shipped to YouTube",
+    icon: Youtube,
+    iconWrap: "bg-muted text-muted-foreground",
+  },
+  shipped: {
+    label: "Shipped",
+    icon: CheckCircle2,
     iconWrap: "bg-muted text-muted-foreground",
   },
   cancelled: {
@@ -82,7 +111,7 @@ export function StatusIconBadge({
         {trigger}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-[160px]">
-        {(["idle", "scheduled", "cancelled"] as const).map((s) => {
+        {PITCH_STATUS_ORDER.map((s) => {
           const sm = STATUS_META[s];
           const SIcon = sm.icon;
           return (

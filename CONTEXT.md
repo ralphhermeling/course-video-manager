@@ -140,13 +140,26 @@ A reusable packaging artifact — the YouTube/newsletter/tweet copy and thumbnai
 _Avoid_: Idea, Concept, Draft (overloaded with Draft Version)
 
 **Pitch Status**:
-A manual marker on a Pitch with three values:
+A manual marker on a Pitch with five values, all user-set (none derived from linked Videos):
 
 - `idle` (default) — drafting / mulling; not yet committed to making the video
-- `scheduled` — manually flagged when the Pitch has been queued in the external delivery calendar (Google Doc); not automated
-- `cancelled` — decided not to make this video; reversible by flipping back to `idle`
+- `scheduled` — queued in the external delivery calendar (Google Doc); not yet scheduled inside YouTube itself
+- `shipped-to-youtube` — uploaded to YouTube and queued in YouTube's own scheduler; awaiting go-live and remaining channels (newsletter, tweet)
+- `shipped` — fully delivered across channels; the Pitch is done
+- `cancelled` — decided not to make this video; sideways off-ramp from any other state, reversible by flipping back to `idle`
+
+Lifecycle ladder: `idle → scheduled → shipped-to-youtube → shipped`, with `cancelled` as a sideways off-ramp from any of them. `shipped` and `cancelled` are mutually exclusive. All transitions are reversible — the field is just a manual bookkeeping marker.
 
 A Pitch can have any status independent of how many Videos are linked to it.
+
+**Default Pitch Filter**:
+The pitches index defaults to showing `idle + scheduled + shipped-to-youtube` — the "still on my desk" set. `shipped` and `cancelled` are hidden by default. When the filter equals this default set, the `status` URL param is omitted (bookmarks of `/pitches` survive future default changes).
+
+### Video destinations
+
+**Skills Changelog**:
+A published AI Hero entity that bundles an article and a Kit newsletter draft for a single **Video**. Created via `POST /api/skills/changelog`; publishes immediately (`state: "published"`) and triggers the Inngest `skill-changelog/published` event, which creates a Kit newsletter draft (template `5176054`, from `matt@aihero.dev`) — drafts only, never sends. The newsletter is required; the article and newsletter fields are authored together on a single page. Public page at `https://www.aihero.dev/skills/<slug>`; newsletter copy includes a hardcoded footer linking back to that page.
+_Avoid_: Changelog (ambiguous with course publish changelog), Skill post, Changelog entry
 
 ### Ordering and lifecycle
 
@@ -177,6 +190,7 @@ A special section directory whose name ends in `ARCHIVE`, filtered out of the de
 - A **Standalone Video** belongs directly to a **Course** with no **Lesson** parent
 - A **Recording Session** produces multiple **Optimistic Clips** that become **Clips** on persistence
 - A **Pitch** is independent of the **Course** hierarchy; one **Pitch** can produce zero or more **Standalone Videos** via a `pitchId` FK on Video. Pitches never attach to lesson-bound Videos.
+- A **Video** can be published to a **Skills Changelog** (AI Hero article + required Kit newsletter draft) as a third destination alongside the YouTube post page and the AI Hero article page
 - **Publishing** uploads to Dropbox, freezes the **Draft Version** into a **Published Version**, and creates a new **Draft Version** — all atomically (Dropbox upload must succeed first)
 
 ## Example dialogue
@@ -223,4 +237,5 @@ A special section directory whose name ends in `ARCHIVE`, filtered out of the de
 - **"Export Version Key" vs "CourseVersion"** — These are unrelated concepts that both use the word "version." The **Export Version Key** is a build-time constant for cache-busting video exports. A **CourseVersion** is a domain snapshot of course structure. Do not confuse them.
 - **"Clear" / "Delete from file system"** (resolved) — Previously used interchangeably for removing exported video files. Now canonicalized as **Purge**. "Clear" described the mechanism (clearing files), not the domain action. **Purge** captures the intent: deliberately removing a cached render artifact to transition a video back to Unexported status.
 - **`cancelled` (Pitch Status) vs `archived`** — Pitches use both, deliberately. `cancelled` is a _semantic_ state ("I decided not to make this video," reversible by un-cancelling). `archived` is a _presentation_ concern (hide from default views, applies regardless of status). They look similar but mean different things; deletion is a third, separate action. Easy to merge later if the distinction proves unused.
+- **`scheduled` vs `shipped-to-youtube`** — Both involve a calendar. `scheduled` is the external Google Doc delivery calendar (Matt's own queue). `shipped-to-youtube` is YouTube's own publishing scheduler (the video is uploaded and queued there). The asymmetry exists because YouTube has its own scheduler but other channels (Twitter, newsletter) don't — so YT alone earns an intermediate "shipped" rung.
 - **"Delete" for lessons** — "Delete" means two different things depending on context: for a **Ghost Lesson**, it removes the DB row. For a real **Lesson**, it purges from disk AND removes from DB. This is distinct from "Convert to Ghost" which only removes from disk. The UI should make the distinction clear through labeling.
