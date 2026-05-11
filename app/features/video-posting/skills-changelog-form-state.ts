@@ -34,6 +34,43 @@ export const stripPrefix = (slug: string): string => {
 
 export { SLUG_PREFIX };
 
+export const NEWSLETTER_HEADER = `Hey {{ subscriber.first_name | strip | default: "there" }},`;
+
+export const buildNewsletterFooter = (fullSlug: string): string =>
+  `\n\n[Watch the video →](https://www.aihero.dev/skills/${fullSlug})\n\nMatt\n`;
+
+export const buildFullNewsletter = (copy: string, fullSlug: string): string =>
+  `${NEWSLETTER_HEADER}\n\n${copy.trimStart().trimEnd()}` +
+  buildNewsletterFooter(fullSlug);
+
+export const buildSkillsChangelogPayload = (args: {
+  title: string;
+  fullSlug: string;
+  body: string;
+  description: string;
+  newsletterSubject: string;
+  newsletterPreviewText: string;
+  newsletterCopy: string;
+}): string =>
+  [
+    "<article>",
+    `  <title>${args.title}</title>`,
+    `  <slug>${args.fullSlug}</slug>`,
+    "  <body>",
+    args.body,
+    "  </body>",
+    `  <seo-description>${args.description}</seo-description>`,
+    "</article>",
+    "",
+    "<newsletter>",
+    `  <subject>${args.newsletterSubject}</subject>`,
+    `  <preview-text>${args.newsletterPreviewText}</preview-text>`,
+    "  <copy>",
+    buildFullNewsletter(args.newsletterCopy, args.fullSlug),
+    "  </copy>",
+    "</newsletter>",
+  ].join("\n");
+
 export function useSkillsChangelogForm(videoId: string) {
   const [title, setTitle] = useState(() => {
     if (typeof localStorage !== "undefined") {

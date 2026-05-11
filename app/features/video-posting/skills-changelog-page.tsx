@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/dialog";
 import {
   CheckCircle2Icon,
+  CheckIcon,
+  CopyIcon,
   ExternalLinkIcon,
   ImageIcon,
   Loader2Icon,
@@ -37,16 +39,14 @@ import {
   AiHeroConnectionStatus,
 } from "./ai-hero-components";
 import {
+  NEWSLETTER_HEADER,
   SLUG_PREFIX,
   SLUG_STORAGE_KEY,
+  buildFullNewsletter,
+  buildSkillsChangelogPayload,
   stripPrefix,
   useSkillsChangelogForm,
 } from "./skills-changelog-form-state";
-
-const NEWSLETTER_HEADER = `Hey {{ subscriber.first_name | strip | default: "there" }},`;
-
-const buildNewsletterFooter = (fullSlug: string): string =>
-  `\n\n[Watch the video →](https://www.aihero.dev/skills/${fullSlug})\n\nMatt\n`;
 
 export function SkillsChangelogPage({
   videoId,
@@ -137,9 +137,10 @@ export function SkillsChangelogPage({
     }
 
     const fullSlug = `${SLUG_PREFIX}${stripPrefix(slugSuffix.trim())}`;
-    const newsletterCopyWithFooter =
-      `${NEWSLETTER_HEADER}\n\n${newsletterCopy.trimStart().trimEnd()}` +
-      buildNewsletterFooter(fullSlug);
+    const newsletterCopyWithFooter = buildFullNewsletter(
+      newsletterCopy,
+      fullSlug
+    );
 
     setIsCheckingExport(true);
     try {
@@ -181,6 +182,41 @@ export function SkillsChangelogPage({
       toast.error("Failed to check export status");
     } finally {
       setIsCheckingExport(false);
+    }
+  };
+
+  const [justCopied, setJustCopied] = useState(false);
+  const [justCopiedAll, setJustCopiedAll] = useState(false);
+
+  const handleCopyFullNewsletter = async () => {
+    const fullSlug = `${SLUG_PREFIX}${stripPrefix(slugSuffix.trim()) || "<slug>"}`;
+    const text = buildFullNewsletter(newsletterCopy, fullSlug);
+    try {
+      await navigator.clipboard.writeText(text);
+      setJustCopied(true);
+      setTimeout(() => setJustCopied(false), 1500);
+    } catch {
+      toast.error("Failed to copy to clipboard");
+    }
+  };
+
+  const handleCopyEverything = async () => {
+    const fullSlug = `${SLUG_PREFIX}${stripPrefix(slugSuffix.trim()) || "<slug>"}`;
+    const text = buildSkillsChangelogPayload({
+      title,
+      fullSlug,
+      body,
+      description,
+      newsletterSubject,
+      newsletterPreviewText,
+      newsletterCopy,
+    });
+    try {
+      await navigator.clipboard.writeText(text);
+      setJustCopiedAll(true);
+      setTimeout(() => setJustCopiedAll(false), 1500);
+    } catch {
+      toast.error("Failed to copy to clipboard");
     }
   };
 
@@ -486,7 +522,24 @@ export function SkillsChangelogPage({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="sc-nl-copy">Copy (Markdown)</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="sc-nl-copy">Copy (Markdown)</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={handleCopyFullNewsletter}
+                disabled={!newsletterCopy.trim()}
+                aria-label="Copy full newsletter"
+                title="Copy full newsletter"
+              >
+                {justCopied ? (
+                  <CheckIcon className="h-4 w-4" />
+                ) : (
+                  <CopyIcon className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
             <div className="rounded-md border border-input overflow-hidden focus-within:ring-1 focus-within:ring-ring">
               <div className="border-b border-input bg-muted/50 px-3 py-2">
                 <pre className="text-base md:text-sm font-mono text-foreground whitespace-pre-wrap break-all">
@@ -530,6 +583,19 @@ export function SkillsChangelogPage({
             <Button
               variant="outline"
               size="sm"
+              onClick={handleCopyEverything}
+              aria-label="Copy article + newsletter"
+              title="Copy article + newsletter"
+            >
+              {justCopiedAll ? (
+                <CheckIcon className="h-4 w-4" />
+              ) : (
+                <CopyIcon className="h-4 w-4" />
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handlePost}
               disabled={!canSubmit}
             >
@@ -544,29 +610,45 @@ export function SkillsChangelogPage({
             </Button>
           </div>
         ) : (
-          <Button
-            onClick={handlePost}
-            disabled={!canSubmit}
-            className="w-full"
-            size="lg"
-          >
-            {isCheckingExport ? (
-              <>
-                <Loader2Icon className="h-4 w-4 animate-spin" />
-                Checking export...
-              </>
-            ) : activeUpload ? (
-              <>
-                <Loader2Icon className="h-4 w-4 animate-spin" />
-                Publishing Skills Changelog...
-              </>
-            ) : (
-              <>
-                <SendIcon className="h-4 w-4" />
-                Publish Skills Changelog
-              </>
-            )}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={handlePost}
+              disabled={!canSubmit}
+              className="flex-1"
+              size="lg"
+            >
+              {isCheckingExport ? (
+                <>
+                  <Loader2Icon className="h-4 w-4 animate-spin" />
+                  Checking export...
+                </>
+              ) : activeUpload ? (
+                <>
+                  <Loader2Icon className="h-4 w-4 animate-spin" />
+                  Publishing Skills Changelog...
+                </>
+              ) : (
+                <>
+                  <SendIcon className="h-4 w-4" />
+                  Publish Skills Changelog
+                </>
+              )}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              onClick={handleCopyEverything}
+              aria-label="Copy article + newsletter"
+              title="Copy article + newsletter"
+            >
+              {justCopiedAll ? (
+                <CheckIcon className="h-4 w-4" />
+              ) : (
+                <CopyIcon className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
         )}
       </div>
 
