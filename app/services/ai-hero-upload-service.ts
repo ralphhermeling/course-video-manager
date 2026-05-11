@@ -446,6 +446,153 @@ const publishPost = (opts: {
   });
 
 /**
+ * Create a Skills Changelog entry on AI Hero with all article + newsletter fields,
+ * published immediately. Returns the final (server-prefixed) slug and resource id.
+ */
+const createSkillsChangelog = (opts: {
+  baseUrl: string;
+  accessToken: string;
+  title: string;
+  slug: string;
+  body: string;
+  description: string;
+  newsletterSubject: string;
+  newsletterPreviewText: string;
+  newsletterCopy: string;
+}) =>
+  Effect.tryPromise({
+    try: async () => {
+      const res = await fetch(`${opts.baseUrl}/api/skills/changelog`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${opts.accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: opts.title,
+          slug: opts.slug,
+          description: opts.description,
+          body: opts.body,
+          newsletterCopy: opts.newsletterCopy,
+          newsletterSubject: opts.newsletterSubject,
+          newsletterPreviewText: opts.newsletterPreviewText,
+          state: "published",
+          visibility: "public",
+        }),
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(
+          `Failed to create skills changelog (${res.status}): ${errorText}`
+        );
+      }
+
+      const data = (await res.json()) as { id: string; slug: string };
+      return data;
+    },
+    catch: (e) =>
+      new AiHeroUploadError({
+        message:
+          e instanceof Error ? e.message : "Failed to create skills changelog",
+        code: "create_skills_changelog_failed",
+      }),
+  });
+
+/**
+ * Full Skills Changelog posting flow:
+ * 1. Create multipart upload
+ * 2. Upload video to S3 in chunks
+ * 3. Complete multipart upload
+ * 4. POST /api/skills/changelog (published immediately, creates Kit draft)
+ * 5. Trigger video processing with parentResourceId = changelog id
+ * 6. Return server-prefixed slug
+ */
+export const postSkillsChangelogToAiHero = (opts: {
+  filePath: string;
+  title: string;
+  slug: string;
+  body: string;
+  description: string;
+  newsletterSubject: string;
+  newsletterPreviewText: string;
+  newsletterCopy: string;
+  onProgress?: (percentage: number) => void;
+}) =>
+  Effect.gen(function* () {
+    const baseUrl = yield* Config.string("AI_HERO_BASE_URL");
+    const accessToken = yield* getAiHeroAccessToken;
+
+    const fileSize = yield* Effect.try({
+      try: () => statSync(opts.filePath).size,
+      catch: () =>
+        new AiHeroUploadError({
+          message: `Video file not found: ${opts.filePath}`,
+          code: "file_not_found",
+        }),
+    });
+
+    const filename = opts.filePath.split("/").pop() ?? "video.mp4";
+
+    yield* Effect.logInfo("Creating multipart upload");
+    const multipart = yield* createMultipartUpload({
+      baseUrl,
+      accessToken,
+      filename,
+    });
+
+    yield* Effect.logInfo(
+      `Uploading video to S3 (${(fileSize / (1024 * 1024)).toFixed(0)}MB, ${Math.ceil(fileSize / CHUNK_SIZE)} parts)`
+    );
+    const parts = yield* uploadFileMultipart({
+      baseUrl,
+      accessToken,
+      filePath: opts.filePath,
+      fileSize,
+      key: multipart.key,
+      uploadId: multipart.uploadId,
+      onProgress: opts.onProgress,
+    });
+
+    yield* Effect.logInfo("Completing multipart upload");
+    const completed = yield* completeMultipartUpload({
+      baseUrl,
+      accessToken,
+      key: multipart.key,
+      uploadId: multipart.uploadId,
+      parts,
+    });
+
+    yield* Effect.logInfo("Creating skills changelog on AI Hero");
+    const changelog = yield* createSkillsChangelog({
+      baseUrl,
+      accessToken,
+      title: opts.title,
+      slug: opts.slug,
+      body: opts.body,
+      description: opts.description,
+      newsletterSubject: opts.newsletterSubject,
+      newsletterPreviewText: opts.newsletterPreviewText,
+      newsletterCopy: opts.newsletterCopy,
+    });
+
+    yield* Effect.logInfo("Triggering video processing");
+    yield* triggerVideoProcessing({
+      baseUrl,
+      accessToken,
+      mediaUrl: completed.publicUrl,
+      fileName: filename,
+      postId: changelog.id,
+    });
+
+    yield* Effect.logInfo(
+      `Skills Changelog published. Slug: ${changelog.slug}`
+    );
+
+    return { slug: changelog.slug };
+  }).pipe(Effect.withConfigProvider(ConfigProvider.fromEnv()));
+
+/**
  * Full AI Hero posting flow:
  * 1. Create multipart upload
  * 2. Upload video to S3 in chunks (with progress)

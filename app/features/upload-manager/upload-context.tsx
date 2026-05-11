@@ -8,12 +8,15 @@ import {
 import { uploadReducer, createInitialUploadState } from "./upload-reducer";
 import { showSuccessToast, showErrorToast } from "./upload-toasts";
 import { startSSEUpload } from "./sse-upload-client";
-import { startSSESocialPost } from "./sse-social-client";
-import { startSSEAiHeroPost } from "./sse-ai-hero-client";
-import { startSSEExport } from "./sse-export-client";
 import { startSSEBatchExport } from "./sse-batch-export-client";
-import { startSSEDropboxPublish } from "./sse-dropbox-publish-client";
-import { startSSEPublish } from "./sse-publish-client";
+import {
+  createAiHeroInitiator,
+  createDropboxPublishInitiator,
+  createExportInitiator,
+  createPublishInitiator,
+  createSkillsChangelogInitiator,
+  createSocialInitiator,
+} from "./upload-context-initiators";
 
 export interface UploadContextType {
   uploads: uploadReducer.State["uploads"];
@@ -35,6 +38,17 @@ export interface UploadContextType {
     body: string,
     description: string,
     slug: string,
+    dependsOn?: string
+  ) => string;
+  startSkillsChangelogUpload: (
+    videoId: string,
+    title: string,
+    slug: string,
+    body: string,
+    description: string,
+    newsletterSubject: string,
+    newsletterPreviewText: string,
+    newsletterCopy: string,
     dependsOn?: string
   ) => string;
   startExportUpload: (videoId: string, title: string) => string;
@@ -75,6 +89,21 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
   // Stores body + description + slug for AI Hero retries
   const aiHeroParamsRef = useRef<
     Map<string, { body: string; description: string; slug: string }>
+  >(new Map());
+
+  // Stores all skills-changelog fields for retries
+  const skillsChangelogParamsRef = useRef<
+    Map<
+      string,
+      {
+        slug: string;
+        body: string;
+        description: string;
+        newsletterSubject: string;
+        newsletterPreviewText: string;
+        newsletterCopy: string;
+      }
+    >
   >(new Map());
 
   // Maps videoId → uploadId for batch exports
@@ -128,229 +157,32 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
   );
 
   const initiateSSESocialConnection = useCallback(
-    (uploadId: string, videoId: string, caption: string) => {
-      const existing = abortControllersRef.current.get(uploadId);
-      if (existing) {
-        existing.abort();
-      }
-
-      const abortController = startSSESocialPost(
-        { videoId, caption },
-        {
-          onProgress: (percentage) => {
-            dispatch({
-              type: "UPDATE_PROGRESS",
-              uploadId,
-              progress: percentage,
-            });
-          },
-          onStageChange: (stage) => {
-            dispatch({
-              type: "UPDATE_BUFFER_STAGE",
-              uploadId,
-              stage,
-            });
-          },
-          onComplete: () => {
-            dispatch({
-              type: "UPLOAD_SUCCESS",
-              uploadId,
-            });
-            abortControllersRef.current.delete(uploadId);
-          },
-          onError: (message) => {
-            dispatch({
-              type: "UPLOAD_ERROR",
-              uploadId,
-              errorMessage: message,
-            });
-            abortControllersRef.current.delete(uploadId);
-          },
-        }
-      );
-
-      abortControllersRef.current.set(uploadId, abortController);
-    },
+    createSocialInitiator(dispatch, abortControllersRef.current),
     []
   );
 
   const initiateSSEAiHeroConnection = useCallback(
-    (
-      uploadId: string,
-      videoId: string,
-      title: string,
-      body: string,
-      description: string,
-      slug: string
-    ) => {
-      const existing = abortControllersRef.current.get(uploadId);
-      if (existing) {
-        existing.abort();
-      }
+    createAiHeroInitiator(dispatch, abortControllersRef.current),
+    []
+  );
 
-      const abortController = startSSEAiHeroPost(
-        { videoId, title, body, description, slug },
-        {
-          onProgress: (percentage) => {
-            dispatch({
-              type: "UPDATE_PROGRESS",
-              uploadId,
-              progress: percentage,
-            });
-          },
-          onComplete: (aiHeroSlug) => {
-            dispatch({
-              type: "UPLOAD_SUCCESS",
-              uploadId,
-              aiHeroSlug,
-            });
-            abortControllersRef.current.delete(uploadId);
-          },
-          onError: (message) => {
-            dispatch({
-              type: "UPLOAD_ERROR",
-              uploadId,
-              errorMessage: message,
-            });
-            abortControllersRef.current.delete(uploadId);
-          },
-        }
-      );
-
-      abortControllersRef.current.set(uploadId, abortController);
-    },
+  const initiateSSESkillsChangelogConnection = useCallback(
+    createSkillsChangelogInitiator(dispatch, abortControllersRef.current),
     []
   );
 
   const initiateSSEExportConnection = useCallback(
-    (uploadId: string, videoId: string) => {
-      const existing = abortControllersRef.current.get(uploadId);
-      if (existing) {
-        existing.abort();
-      }
-
-      const abortController = startSSEExport(
-        { videoId },
-        {
-          onStageChange: (stage) => {
-            dispatch({
-              type: "UPDATE_EXPORT_STAGE",
-              uploadId,
-              stage,
-            });
-          },
-          onComplete: () => {
-            dispatch({
-              type: "UPLOAD_SUCCESS",
-              uploadId,
-            });
-            abortControllersRef.current.delete(uploadId);
-          },
-          onError: (message) => {
-            dispatch({
-              type: "UPLOAD_ERROR",
-              uploadId,
-              errorMessage: message,
-            });
-            abortControllersRef.current.delete(uploadId);
-          },
-        }
-      );
-
-      abortControllersRef.current.set(uploadId, abortController);
-    },
+    createExportInitiator(dispatch, abortControllersRef.current),
     []
   );
 
   const initiateSSEDropboxPublishConnection = useCallback(
-    (uploadId: string, repoId: string) => {
-      const existing = abortControllersRef.current.get(uploadId);
-      if (existing) {
-        existing.abort();
-      }
-
-      const abortController = startSSEDropboxPublish(
-        { repoId },
-        {
-          onProgress: (percentage) => {
-            dispatch({
-              type: "UPDATE_PROGRESS",
-              uploadId,
-              progress: percentage,
-            });
-          },
-          onComplete: (missingVideoCount) => {
-            if (missingVideoCount > 0) {
-              dispatch({
-                type: "UPDATE_DROPBOX_PUBLISH_MISSING_COUNT",
-                uploadId,
-                missingVideoCount,
-              });
-            }
-            dispatch({
-              type: "UPLOAD_SUCCESS",
-              uploadId,
-            });
-            abortControllersRef.current.delete(uploadId);
-          },
-          onError: (message) => {
-            dispatch({
-              type: "UPLOAD_ERROR",
-              uploadId,
-              errorMessage: message,
-            });
-            abortControllersRef.current.delete(uploadId);
-          },
-        }
-      );
-
-      abortControllersRef.current.set(uploadId, abortController);
-    },
+    createDropboxPublishInitiator(dispatch, abortControllersRef.current),
     []
   );
 
   const initiateSSEPublishConnection = useCallback(
-    (uploadId: string, courseId: string, name: string, description: string) => {
-      const existing = abortControllersRef.current.get(uploadId);
-      if (existing) {
-        existing.abort();
-      }
-
-      const abortController = startSSEPublish(
-        { courseId, name, description },
-        {
-          onStageChange: (stage) => {
-            dispatch({
-              type: "UPDATE_PUBLISH_STAGE",
-              uploadId,
-              stage,
-            });
-          },
-          onComplete: (result) => {
-            dispatch({
-              type: "PUBLISH_COMPLETE",
-              uploadId,
-              newDraftVersionId: result.newDraftVersionId,
-            });
-            dispatch({
-              type: "UPLOAD_SUCCESS",
-              uploadId,
-            });
-            abortControllersRef.current.delete(uploadId);
-          },
-          onError: (message) => {
-            dispatch({
-              type: "UPLOAD_ERROR",
-              uploadId,
-              errorMessage: message,
-            });
-            abortControllersRef.current.delete(uploadId);
-          },
-        }
-      );
-
-      abortControllersRef.current.set(uploadId, abortController);
-    },
+    createPublishInitiator(dispatch, abortControllersRef.current),
     []
   );
 
@@ -456,6 +288,57 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
       return uploadId;
     },
     [initiateSSEAiHeroConnection]
+  );
+
+  const startSkillsChangelogUpload = useCallback(
+    (
+      videoId: string,
+      title: string,
+      slug: string,
+      body: string,
+      description: string,
+      newsletterSubject: string,
+      newsletterPreviewText: string,
+      newsletterCopy: string,
+      dependsOn?: string
+    ) => {
+      const uploadId = generateUploadId();
+
+      skillsChangelogParamsRef.current.set(uploadId, {
+        slug,
+        body,
+        description,
+        newsletterSubject,
+        newsletterPreviewText,
+        newsletterCopy,
+      });
+
+      dispatch({
+        type: "START_UPLOAD",
+        uploadId,
+        videoId,
+        title,
+        uploadType: "skills-changelog",
+        dependsOn,
+      });
+
+      if (!dependsOn) {
+        initiateSSESkillsChangelogConnection(
+          uploadId,
+          videoId,
+          title,
+          slug,
+          body,
+          description,
+          newsletterSubject,
+          newsletterPreviewText,
+          newsletterCopy
+        );
+      }
+
+      return uploadId;
+    },
+    [initiateSSESkillsChangelogConnection]
   );
 
   const startExportUpload = useCallback(
@@ -602,6 +485,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     uploadParamsRef.current.delete(uploadId);
     socialParamsRef.current.delete(uploadId);
     aiHeroParamsRef.current.delete(uploadId);
+    skillsChangelogParamsRef.current.delete(uploadId);
     dropboxPublishParamsRef.current.delete(uploadId);
     publishParamsRef.current.delete(uploadId);
     dispatch({ type: "DISMISS", uploadId });
@@ -660,6 +544,21 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
               params.slug
             );
           }
+        } else if (upload.uploadType === "skills-changelog") {
+          const params = skillsChangelogParamsRef.current.get(uploadId);
+          if (params) {
+            initiateSSESkillsChangelogConnection(
+              uploadId,
+              upload.videoId,
+              upload.title,
+              params.slug,
+              params.body,
+              params.description,
+              params.newsletterSubject,
+              params.newsletterPreviewText,
+              params.newsletterCopy
+            );
+          }
         } else if (upload.uploadType === "export") {
           initiateSSEExportConnection(uploadId, upload.videoId);
         } else if (upload.uploadType === "dropbox-publish") {
@@ -705,6 +604,21 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
               params.slug
             );
           }
+        } else if (upload.uploadType === "skills-changelog") {
+          const params = skillsChangelogParamsRef.current.get(uploadId);
+          if (params) {
+            initiateSSESkillsChangelogConnection(
+              uploadId,
+              upload.videoId,
+              upload.title,
+              params.slug,
+              params.body,
+              params.description,
+              params.newsletterSubject,
+              params.newsletterPreviewText,
+              params.newsletterCopy
+            );
+          }
         } else if (upload.uploadType === "buffer") {
           const params = socialParamsRef.current.get(uploadId);
           if (params) {
@@ -726,6 +640,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     initiateSSEConnection,
     initiateSSESocialConnection,
     initiateSSEAiHeroConnection,
+    initiateSSESkillsChangelogConnection,
     initiateSSEExportConnection,
     initiateSSEDropboxPublishConnection,
     initiateSSEPublishConnection,
@@ -747,6 +662,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
         startUpload,
         startSocialUpload,
         startAiHeroUpload,
+        startSkillsChangelogUpload,
         startExportUpload,
         startBatchExportUpload,
         startDropboxPublish,

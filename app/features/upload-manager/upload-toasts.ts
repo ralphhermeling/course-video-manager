@@ -59,6 +59,31 @@ export function showSuccessToast(upload: uploadReducer.UploadEntry): void {
         // Silently ignore errors (including duplicate URL conflicts)
       });
     }
+  } else if (upload.uploadType === "skills-changelog") {
+    const pageUrl = `/videos/${upload.videoId}/skills-changelog`;
+
+    toast.success(`"${upload.title}" published as Skills Changelog`, {
+      duration: Infinity,
+      cancel: {
+        label: "Go to Skills Changelog",
+        onClick: () => {
+          window.location.href = pageUrl;
+        },
+      },
+    });
+
+    if (upload.skillsChangelogSlug) {
+      const formData = new FormData();
+      formData.append("title", upload.title);
+      formData.append(
+        "url",
+        `https://www.aihero.dev/skills/${upload.skillsChangelogSlug}`
+      );
+      fetch("/api/links", {
+        method: "POST",
+        body: formData,
+      }).catch(() => {});
+    }
   } else if (upload.uploadType === "export") {
     toast.success(`"${upload.title}" exported successfully`, {
       duration: Infinity,

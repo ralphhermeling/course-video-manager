@@ -9,6 +9,7 @@ export namespace uploadReducer {
     | "youtube"
     | "buffer"
     | "ai-hero"
+    | "skills-changelog"
     | "export"
     | "dropbox-publish"
     | "publish";
@@ -49,6 +50,11 @@ export namespace uploadReducer {
     aiHeroSlug: string | null;
   }
 
+  export interface SkillsChangelogUploadEntry extends BaseUploadEntry {
+    uploadType: "skills-changelog";
+    skillsChangelogSlug: string | null;
+  }
+
   export interface ExportUploadEntry extends BaseUploadEntry {
     uploadType: "export";
     exportStage: ExportStage | null;
@@ -71,6 +77,7 @@ export namespace uploadReducer {
     | YouTubeUploadEntry
     | BufferUploadEntry
     | AiHeroUploadEntry
+    | SkillsChangelogUploadEntry
     | ExportUploadEntry
     | DropboxPublishUploadEntry
     | PublishUploadEntry;
@@ -106,6 +113,7 @@ export namespace uploadReducer {
         uploadId: string;
         youtubeVideoId?: string;
         aiHeroSlug?: string;
+        skillsChangelogSlug?: string;
       }
     | { type: "UPLOAD_ERROR"; uploadId: string; errorMessage: string }
     | { type: "RETRY"; uploadId: string }
@@ -158,6 +166,13 @@ export const uploadReducer = (
           break;
         case "ai-hero":
           entry = { ...base, uploadType: "ai-hero", aiHeroSlug: null };
+          break;
+        case "skills-changelog":
+          entry = {
+            ...base,
+            uploadType: "skills-changelog",
+            skillsChangelogSlug: null,
+          };
           break;
         case "export":
           entry = {
@@ -338,6 +353,13 @@ export const uploadReducer = (
             aiHeroSlug: action.aiHeroSlug ?? null,
           };
           break;
+        case "skills-changelog":
+          entry = {
+            ...base,
+            uploadType: "skills-changelog",
+            skillsChangelogSlug: action.skillsChangelogSlug ?? null,
+          };
+          break;
         case "export":
           entry = {
             ...base,
@@ -447,6 +469,13 @@ export const uploadReducer = (
           break;
         case "ai-hero":
           entry = { ...base, uploadType: "ai-hero", aiHeroSlug: null };
+          break;
+        case "skills-changelog":
+          entry = {
+            ...base,
+            uploadType: "skills-changelog",
+            skillsChangelogSlug: null,
+          };
           break;
         case "export":
           entry = {
