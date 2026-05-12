@@ -459,6 +459,42 @@ export const ComponentInner = (props: Route.ComponentProps) => {
       fsData={props.loaderData.fsData}
       videoCount={props.loaderData.videoCount}
       referenceCandidates={props.loaderData.referenceCandidates}
+      onAddReferenceClipSectionAt={({
+        videoId,
+        targetItemId,
+        targetItemType,
+        position,
+        name,
+      }) => {
+        clipService
+          .createClipSectionAtPosition({
+            videoId,
+            name,
+            position,
+            targetItemId,
+            targetItemType,
+          })
+          .then(() => revalidator.revalidate())
+          .catch((error) => {
+            console.error("Failed to add reference clip section", error);
+          });
+      }}
+      onEditReferenceClipSectionName={(clipSectionId, name) => {
+        clipService
+          .updateClipSection(clipSectionId, name)
+          .then(() => revalidator.revalidate())
+          .catch((error) => {
+            console.error("Failed to edit reference clip section", error);
+          });
+      }}
+      onDeleteReferenceClipSection={(clipSectionId) => {
+        clipService
+          .archiveClipSections([clipSectionId])
+          .then(() => revalidator.revalidate())
+          .catch((error) => {
+            console.error("Failed to delete reference clip section", error);
+          });
+      }}
       error={clipState.error}
       onCreateVideoFromSelection={(
         frontendClipIds,

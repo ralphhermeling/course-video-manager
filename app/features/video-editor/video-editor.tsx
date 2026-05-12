@@ -1,6 +1,7 @@
 import type { ClipSectionNamingModal } from "./types";
 import { ClipSectionNamingModal as ClipSectionNamingModalComponent } from "./components/clip-section-naming-modal";
 import { CreateVideoFromSelectionModal } from "./components/create-video-from-selection-modal";
+import { FilePasteModalWithFsData } from "./components/file-paste-modal-with-fs-data";
 import { VideoPlayerPanel } from "./components/video-player-panel";
 import { ClipTimeline } from "./components/clip-timeline";
 import { ErrorOverlay } from "./components/error-overlay";
@@ -15,7 +16,6 @@ import { useWebSocket } from "./hooks/use-websocket";
 import { useClipboardOperations } from "./hooks/use-clipboard-operations";
 import {
   Suspense,
-  use,
   useCallback,
   useEffect,
   type ReactNode,
@@ -23,8 +23,6 @@ import {
   useState,
 } from "react";
 import { useFetcher, useRevalidator } from "react-router";
-import { StandaloneFilePasteModal } from "@/components/standalone-file-paste-modal";
-import { LessonFilePasteModal } from "@/components/lesson-file-paste-modal";
 import { useEffectReducer } from "use-effect-reducer";
 import type {
   Clip,
@@ -133,40 +131,6 @@ const useVideoEditor = (props: {
   };
 };
 
-type FsData = {
-  hasExplainerFolder: boolean;
-  standaloneFiles: Array<{ path: string }>;
-  files: Array<{ path: string; size: number; defaultEnabled: boolean }>;
-};
-
-const FilePasteModalWithFsData = (props: {
-  fsData: Promise<FsData>;
-  lessonId?: string;
-  videoId: string;
-  isPasteModalOpen: boolean;
-  handlePasteModalClose: (open: boolean) => void;
-  handleFileCreated: () => void;
-}) => {
-  const fsData = use(props.fsData);
-  return props.lessonId ? (
-    <LessonFilePasteModal
-      videoId={props.videoId}
-      open={props.isPasteModalOpen}
-      onOpenChange={props.handlePasteModalClose}
-      existingFiles={fsData.files}
-      onFileCreated={props.handleFileCreated}
-    />
-  ) : (
-    <StandaloneFilePasteModal
-      videoId={props.videoId}
-      open={props.isPasteModalOpen}
-      onOpenChange={props.handlePasteModalClose}
-      existingFiles={fsData.standaloneFiles}
-      onFileCreated={props.handleFileCreated}
-    />
-  );
-};
-
 export const VideoEditor = (props: {
   obsConnectorState: OBSConnectionOuterState;
   items: TimelineItem[];
@@ -192,6 +156,15 @@ export const VideoEditor = (props: {
   }>;
   videoCount: number;
   referenceCandidates: ReferenceCandidate[];
+  onAddReferenceClipSectionAt: (input: {
+    videoId: string;
+    targetItemId: string;
+    targetItemType: "clip" | "clip-section";
+    position: "before" | "after";
+    name: string;
+  }) => void;
+  onEditReferenceClipSectionName: (clipSectionId: string, name: string) => void;
+  onDeleteReferenceClipSection: (clipSectionId: string) => void;
   insertionPoint: FrontendInsertionPoint;
   onSetInsertionPoint: (mode: "after" | "before", clipId: FrontendId) => void;
   onDeleteLatestInsertedClip: () => void;
@@ -676,16 +649,18 @@ export const VideoEditor = (props: {
   const body: ReactNode = activeReference ? (
     <>
       <ClipTimeline />
-      <div className="order-3 lg:order-2 lg:w-80 shrink-0 h-full min-h-0">
+      <div className="order-3 lg:order-2 lg:w-[40ch] shrink-0 h-full min-h-0">
         <ReferencePanel
           candidates={props.referenceCandidates}
           selectedId={activeReference}
-          onSelect={setReferenceVideoId}
           onRemove={() => setReferenceVideoId(null)}
+          onAddSectionAt={props.onAddReferenceClipSectionAt}
+          onEditSectionName={props.onEditReferenceClipSectionName}
+          onDeleteSection={props.onDeleteReferenceClipSection}
           className="h-full"
         />
       </div>
-      <div className="order-1 lg:order-3 lg:flex-1 h-full min-h-0 flex flex-col">
+      <div className="order-1 lg:order-3 lg:flex-[1.5] h-full min-h-0 flex flex-col">
         <VideoPlayerPanel />
       </div>
     </>

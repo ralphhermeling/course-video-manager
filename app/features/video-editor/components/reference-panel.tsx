@@ -1,12 +1,45 @@
 import { cn } from "@/lib/utils";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { ChevronDown, X } from "lucide-react";
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  ChevronDown,
+  ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  PencilIcon,
+  PlusIcon,
+  Trash2Icon,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useEffect, useState } from "react";
+
+const COLLAPSED_STORAGE_KEY = "reference-panel-collapsed";
+
+const loadCollapsed = (): Record<string, boolean> => {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(COLLAPSED_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return typeof parsed === "object" && parsed !== null ? parsed : {};
+  } catch {
+    return {};
+  }
+};
 
 export type ReferenceCandidate = {
   id: string;
@@ -15,55 +48,132 @@ export type ReferenceCandidate = {
   clipSections: Array<{ id: string; order: string; name: string }>;
 };
 
-type Group = { sectionName: string | null; clipTexts: string[] };
+type GroupItem =
+  | { kind: "section"; id: string; name: string }
+  | { kind: "clip"; id: string; text: string };
+
+type Group = {
+  section: { id: string; name: string } | null;
+  clips: Array<{ id: string; text: string }>;
+};
 
 const groupByClipSection = (candidate: ReferenceCandidate): Group[] => {
-  const items = [
+  const items: Array<GroupItem & { order: string }> = [
     ...candidate.clipSections.map((s) => ({
       kind: "section" as const,
       order: s.order,
+      id: s.id,
       name: s.name,
     })),
     ...candidate.clips.map((c) => ({
       kind: "clip" as const,
       order: c.order,
+      id: c.id,
       text: c.text,
     })),
   ].sort((a, b) => (a.order < b.order ? -1 : a.order > b.order ? 1 : 0));
 
   const groups: Group[] = [];
-  let current: Group = { sectionName: null, clipTexts: [] };
+  let current: Group = { section: null, clips: [] };
   for (const item of items) {
     if (item.kind === "section") {
-      if (current.clipTexts.length > 0 || current.sectionName !== null) {
+      if (current.clips.length > 0 || current.section !== null) {
         groups.push(current);
       }
-      current = { sectionName: item.name, clipTexts: [] };
+      current = { section: { id: item.id, name: item.name }, clips: [] };
     } else {
-      current.clipTexts.push(item.text);
+      current.clips.push({ id: item.id, text: item.text });
     }
   }
-  if (current.clipTexts.length > 0 || current.sectionName !== null) {
+  if (current.clips.length > 0 || current.section !== null) {
     groups.push(current);
   }
   return groups;
 };
 
+type ModalState =
+  | {
+      mode: "add-at";
+      targetItemId: string;
+      targetItemType: "clip" | "clip-section";
+      position: "before" | "after";
+      defaultName: string;
+    }
+  | { mode: "edit"; clipSectionId: string; currentName: string }
+  | null;
+
 export const ReferencePanel = (props: {
   candidates: ReferenceCandidate[];
   selectedId: string;
-  onSelect: (id: string) => void;
   onRemove: () => void;
+  onAddSectionAt: (input: {
+    videoId: string;
+    targetItemId: string;
+    targetItemType: "clip" | "clip-section";
+    position: "before" | "after";
+    name: string;
+  }) => void;
+  onEditSectionName: (clipSectionId: string, name: string) => void;
+  onDeleteSection: (clipSectionId: string) => void;
   className?: string;
 }) => {
   const selected =
     props.candidates.find((c) => c.id === props.selectedId) ??
     props.candidates[0];
 
+  const [modal, setModal] = useState<ModalState>(null);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    setCollapsed(loadCollapsed());
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
+      COLLAPSED_STORAGE_KEY,
+      JSON.stringify(collapsed)
+    );
+  }, [collapsed]);
+
+  const toggleCollapsed = (sectionId: string) =>
+    setCollapsed((prev) => ({ ...prev, [sectionId]: !prev[sectionId] }));
+
   if (!selected) return null;
 
   const groups = groupByClipSection(selected);
-  const totalClips = selected.clips.length;
+  const sectionIds = selected.clipSections.map((s) => s.id);
+  const allCollapsed =
+    sectionIds.length > 0 && sectionIds.every((id) => collapsed[id]);
+  const toggleAll = () => {
+    setCollapsed((prev) => {
+      const next = { ...prev };
+      for (const id of sectionIds) next[id] = !allCollapsed;
+      return next;
+    });
+  };
+
+  const defaultSectionName = `Section ${selected.clipSections.length + 1}`;
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!modal) return;
+    const formData = new FormData(e.currentTarget);
+    const name = (formData.get("name") as string).trim();
+    if (!name) return;
+    if (modal.mode === "add-at") {
+      props.onAddSectionAt({
+        videoId: selected.id,
+        targetItemId: modal.targetItemId,
+        targetItemType: modal.targetItemType,
+        position: modal.position,
+        name,
+      });
+    } else {
+      props.onEditSectionName(modal.clipSectionId, name);
+    }
+    setModal(null);
+  };
 
   return (
     <div
@@ -77,38 +187,25 @@ export const ReferencePanel = (props: {
           <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold shrink-0">
             Reference
           </span>
-          {props.candidates.length > 1 ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  className="flex items-center gap-1 text-xs font-medium hover:bg-muted px-2 py-0.5 rounded min-w-0"
-                >
-                  <span className="truncate">{selected.path}</span>
-                  <ChevronDown className="size-3 shrink-0" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                {props.candidates.map((c) => (
-                  <DropdownMenuItem
-                    key={c.id}
-                    onSelect={() => props.onSelect(c.id)}
-                  >
-                    {c.path}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : (
-            <span className="text-xs font-medium truncate">
-              {selected.path}
-            </span>
-          )}
+          <span className="text-xs font-medium truncate">{selected.path}</span>
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <span className="text-[10px] text-muted-foreground">
-            {totalClips} clips
-          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="size-6 p-0"
+            onClick={toggleAll}
+            disabled={sectionIds.length === 0}
+            aria-label={
+              allCollapsed ? "Expand all sections" : "Collapse all sections"
+            }
+          >
+            {allCollapsed ? (
+              <ChevronsUpDown className="size-3" />
+            ) : (
+              <ChevronsDownUp className="size-3" />
+            )}
+          </Button>
           <Button
             variant="ghost"
             size="sm"
@@ -123,22 +220,175 @@ export const ReferencePanel = (props: {
 
       <div className="overflow-y-auto flex-1 px-3 py-2 space-y-3">
         {groups.map((group, gi) => (
-          <div key={gi}>
-            {group.sectionName !== null && (
-              <h4 className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">
-                {group.sectionName}
-              </h4>
+          <div key={group.section?.id ?? `nosection-${gi}`}>
+            {group.section !== null && (
+              <ContextMenu>
+                <ContextMenuTrigger asChild>
+                  <h4
+                    className="text-[11px] uppercase tracking-wider text-muted-foreground hover:text-foreground font-semibold mb-1 cursor-context-menu flex items-center gap-1"
+                    onClick={() => toggleCollapsed(group.section!.id)}
+                  >
+                    {collapsed[group.section.id] ? (
+                      <ChevronRight className="size-3 shrink-0" />
+                    ) : (
+                      <ChevronDown className="size-3 shrink-0" />
+                    )}
+                    <span>{group.section.name}</span>
+                  </h4>
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                  <ContextMenuItem
+                    onSelect={() =>
+                      setModal({
+                        mode: "edit",
+                        clipSectionId: group.section!.id,
+                        currentName: group.section!.name,
+                      })
+                    }
+                  >
+                    <PencilIcon />
+                    Edit
+                  </ContextMenuItem>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem
+                    onSelect={() =>
+                      setModal({
+                        mode: "add-at",
+                        targetItemId: group.section!.id,
+                        targetItemType: "clip-section",
+                        position: "before",
+                        defaultName: defaultSectionName,
+                      })
+                    }
+                  >
+                    <PlusIcon />
+                    Add Section Before
+                  </ContextMenuItem>
+                  <ContextMenuItem
+                    onSelect={() =>
+                      setModal({
+                        mode: "add-at",
+                        targetItemId: group.section!.id,
+                        targetItemType: "clip-section",
+                        position: "after",
+                        defaultName: defaultSectionName,
+                      })
+                    }
+                  >
+                    <PlusIcon />
+                    Add Section After
+                  </ContextMenuItem>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem
+                    variant="destructive"
+                    onSelect={() => props.onDeleteSection(group.section!.id)}
+                  >
+                    <Trash2Icon />
+                    Delete
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
             )}
-            <div className="space-y-1.5">
-              {group.clipTexts.map((text, i) => (
-                <p key={i} className="text-foreground/80 leading-snug text-sm">
-                  {text}
-                </p>
+            <div
+              className={cn(
+                "space-y-1.5",
+                group.section !== null &&
+                  collapsed[group.section.id] &&
+                  "hidden"
+              )}
+            >
+              {group.clips.map((clip) => (
+                <ContextMenu key={clip.id}>
+                  <ContextMenuTrigger asChild>
+                    <p className="text-foreground/80 hover:text-foreground leading-snug text-sm cursor-context-menu">
+                      {clip.text}
+                    </p>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent>
+                    <ContextMenuItem
+                      onSelect={() =>
+                        setModal({
+                          mode: "add-at",
+                          targetItemId: clip.id,
+                          targetItemType: "clip",
+                          position: "before",
+                          defaultName: defaultSectionName,
+                        })
+                      }
+                    >
+                      <PlusIcon />
+                      Add Section Before
+                    </ContextMenuItem>
+                    <ContextMenuItem
+                      onSelect={() =>
+                        setModal({
+                          mode: "add-at",
+                          targetItemId: clip.id,
+                          targetItemType: "clip",
+                          position: "after",
+                          defaultName: defaultSectionName,
+                        })
+                      }
+                    >
+                      <PlusIcon />
+                      Add Section After
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                </ContextMenu>
               ))}
             </div>
           </div>
         ))}
       </div>
+
+      <Dialog
+        open={modal !== null}
+        onOpenChange={(open) => !open && setModal(null)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {modal?.mode === "edit"
+                ? "Edit Clip Section"
+                : "Name Clip Section"}
+            </DialogTitle>
+          </DialogHeader>
+          <form className="space-y-4 py-4" onSubmit={handleSubmit}>
+            <div className="space-y-2">
+              <Label htmlFor="reference-clip-section-name">Section Name</Label>
+              <Input
+                id="reference-clip-section-name"
+                name="name"
+                autoFocus
+                defaultValue={
+                  modal?.mode === "edit"
+                    ? modal.currentName
+                    : modal?.mode === "add-at"
+                      ? modal.defaultName
+                      : ""
+                }
+                required
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault();
+                    e.currentTarget.form?.requestSubmit();
+                  }
+                }}
+              />
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => setModal(null)}
+                type="button"
+              >
+                Cancel
+              </Button>
+              <Button type="submit">Save</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
