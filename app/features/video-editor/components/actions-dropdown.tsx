@@ -110,16 +110,6 @@ export const ActionsDropdown = (props: {
         )}
       </Tooltip>
       <DropdownMenuContent align="end" className="w-64">
-        <DropdownMenuItem onSelect={props.onRenameVideoClick}>
-          <PencilLineIcon className="w-4 h-4 mr-2" />
-          <div className="flex flex-col">
-            <span className="font-medium">Rename Video</span>
-            <span className="text-xs text-muted-foreground">
-              Change the video name
-            </span>
-          </div>
-        </DropdownMenuItem>
-
         <DropdownMenuItem
           onSelect={props.onGenerateClipSectionsClick}
           disabled={!props.allClipsHaveText}
@@ -172,30 +162,6 @@ export const ActionsDropdown = (props: {
             </DropdownMenuSubContent>
           </DropdownMenuSub>
         ) : null}
-
-        {props.onRevealInFileSystem && (
-          <DropdownMenuItem onSelect={props.onRevealInFileSystem}>
-            <FolderOpen className="w-4 h-4 mr-2" />
-            <div className="flex flex-col">
-              <span className="font-medium">Reveal in File System</span>
-              <span className="text-xs text-muted-foreground">
-                Open in Windows Explorer
-              </span>
-            </div>
-          </DropdownMenuItem>
-        )}
-
-        {props.onOpenInVSCode && (
-          <DropdownMenuItem onSelect={props.onOpenInVSCode}>
-            <CodeIcon className="w-4 h-4 mr-2" />
-            <div className="flex flex-col">
-              <span className="font-medium">Open in VS Code</span>
-              <span className="text-xs text-muted-foreground">
-                Open repo in VS Code
-              </span>
-            </div>
-          </DropdownMenuItem>
-        )}
 
         <DropdownMenuSeparator />
 
@@ -315,6 +281,42 @@ export const ActionsDropdown = (props: {
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />
+
+        <DropdownMenuItem onSelect={props.onRenameVideoClick}>
+          <PencilLineIcon className="w-4 h-4 mr-2" />
+          <div className="flex flex-col">
+            <span className="font-medium">Rename Video</span>
+            <span className="text-xs text-muted-foreground">
+              Change the video name
+            </span>
+          </div>
+        </DropdownMenuItem>
+
+        {props.onRevealInFileSystem && (
+          <DropdownMenuItem onSelect={props.onRevealInFileSystem}>
+            <FolderOpen className="w-4 h-4 mr-2" />
+            <div className="flex flex-col">
+              <span className="font-medium">Reveal in File System</span>
+              <span className="text-xs text-muted-foreground">
+                Open in Windows Explorer
+              </span>
+            </div>
+          </DropdownMenuItem>
+        )}
+
+        {props.onOpenInVSCode && (
+          <DropdownMenuItem onSelect={props.onOpenInVSCode}>
+            <CodeIcon className="w-4 h-4 mr-2" />
+            <div className="flex flex-col">
+              <span className="font-medium">Open in VS Code</span>
+              <span className="text-xs text-muted-foreground">
+                Open repo in VS Code
+              </span>
+            </div>
+          </DropdownMenuItem>
+        )}
+
+        {props.lessonId && <DropdownMenuSeparator />}
 
         {props.lessonId && (
           <DropdownMenuItem onSelect={props.onAddVideoClick}>

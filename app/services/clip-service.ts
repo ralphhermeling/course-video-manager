@@ -19,6 +19,7 @@ import type { PauseLength } from "@/silence-detection-constants";
 
 export type Clip = InferSelectModel<typeof clips>;
 export type ClipSection = InferSelectModel<typeof clipSections>;
+export type RegeneratedClipSection = ClipSection & { beforeClipId: string };
 export type Video = InferSelectModel<typeof videos>;
 
 // ============================================================================
@@ -374,7 +375,7 @@ export interface ClipService {
   // AI-driven bulk replace of all ClipSections on a Video
   regenerateClipSections(
     input: RegenerateClipSectionsInput
-  ): Promise<ClipSection[]>;
+  ): Promise<RegeneratedClipSection[]>;
 }
 
 // ============================================================================
@@ -549,7 +550,7 @@ export function createClipService(send: ClipServiceTransport): ClipService {
       return send({
         type: "regenerate-clip-sections",
         input,
-      }) as Promise<ClipSection[]>;
+      }) as Promise<RegeneratedClipSection[]>;
     },
   };
 }

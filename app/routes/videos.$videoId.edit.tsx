@@ -497,7 +497,20 @@ export const ComponentInner = (props: Route.ComponentProps) => {
       }}
       onRegenerateClipSections={async (videoId, sections) => {
         try {
-          await clipService.regenerateClipSections({ videoId, sections });
+          const inserted = await clipService.regenerateClipSections({
+            videoId,
+            sections,
+          });
+          if (videoId === props.loaderData.video.id) {
+            dispatch({
+              type: "clip-sections-replaced",
+              sections: inserted.map((s) => ({
+                databaseId: s.id as DatabaseId,
+                name: s.name,
+                beforeClipDatabaseId: s.beforeClipId as DatabaseId,
+              })),
+            });
+          }
           revalidator.revalidate();
         } catch (error) {
           console.error("Failed to regenerate clip sections", error);

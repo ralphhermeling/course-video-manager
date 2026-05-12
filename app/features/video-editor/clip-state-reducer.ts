@@ -19,6 +19,7 @@ import { createFrontendId, createSessionId } from "./clip-state-reducer.types";
 import {
   archiveClips,
   handleAddClipSectionAt,
+  handleClipSectionsReplaced,
   handleNewDatabaseClips,
   handleNewOptimisticClipDetected,
 } from "./clip-state-reducer.helpers";
@@ -613,6 +614,8 @@ export const clipStateReducer: EffectReducer<
         }),
       };
     }
+    case "clip-sections-replaced":
+      return handleClipSectionsReplaced(state, action);
     case "restore-clip": {
       const item = state.items.find((c) => c.frontendId === action.clipId);
 

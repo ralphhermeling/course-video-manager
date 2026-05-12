@@ -325,6 +325,236 @@ describe("clipStateReducer", () => {
       });
     });
 
+    it("Should replace all clip sections when clip-sections-replaced is dispatched", () => {
+      const tester = new ReducerTester(
+        clipStateReducer,
+        createInitialState({
+          items: [
+            fromPartial({
+              type: "on-database",
+              frontendId: "fe-1" as FrontendId,
+              databaseId: "db-1" as DatabaseId,
+              scene: "Clip 1",
+              insertionOrder: null,
+            }),
+            fromPartial({
+              type: "clip-section-on-database",
+              frontendId: "fe-old-s" as FrontendId,
+              databaseId: "db-old-s" as DatabaseId,
+              name: "Old Section",
+              insertionOrder: null,
+            }),
+            fromPartial({
+              type: "on-database",
+              frontendId: "fe-2" as FrontendId,
+              databaseId: "db-2" as DatabaseId,
+              scene: "Clip 2",
+              insertionOrder: null,
+            }),
+            fromPartial({
+              type: "on-database",
+              frontendId: "fe-3" as FrontendId,
+              databaseId: "db-3" as DatabaseId,
+              scene: "Clip 3",
+              insertionOrder: null,
+            }),
+          ],
+        })
+      );
+
+      const state = tester
+        .send({
+          type: "clip-sections-replaced",
+          sections: [
+            {
+              databaseId: "db-new-s1" as DatabaseId,
+              name: "New Section A",
+              beforeClipDatabaseId: "db-1" as DatabaseId,
+            },
+            {
+              databaseId: "db-new-s2" as DatabaseId,
+              name: "New Section B",
+              beforeClipDatabaseId: "db-3" as DatabaseId,
+            },
+          ],
+        })
+        .getState();
+
+      expect(state.items).toHaveLength(5);
+      expect(state.items[0]).toMatchObject({
+        type: "clip-section-on-database",
+        databaseId: "db-new-s1",
+        name: "New Section A",
+      });
+      expect(state.items[1]).toMatchObject({
+        type: "on-database",
+        databaseId: "db-1",
+      });
+      expect(state.items[2]).toMatchObject({
+        type: "on-database",
+        databaseId: "db-2",
+      });
+      expect(state.items[3]).toMatchObject({
+        type: "clip-section-on-database",
+        databaseId: "db-new-s2",
+        name: "New Section B",
+      });
+      expect(state.items[4]).toMatchObject({
+        type: "on-database",
+        databaseId: "db-3",
+      });
+
+      // No old section remains
+      expect(
+        state.items.find(
+          (i) =>
+            i.type === "clip-section-on-database" && i.databaseId === "db-old-s"
+        )
+      ).toBeUndefined();
+    });
+
+    it("Should remove all sections when clip-sections-replaced is dispatched with empty array", () => {
+      const tester = new ReducerTester(
+        clipStateReducer,
+        createInitialState({
+          items: [
+            fromPartial({
+              type: "on-database",
+              frontendId: "fe-1" as FrontendId,
+              databaseId: "db-1" as DatabaseId,
+              scene: "Clip 1",
+              insertionOrder: null,
+            }),
+            fromPartial({
+              type: "clip-section-on-database",
+              frontendId: "fe-s" as FrontendId,
+              databaseId: "db-s" as DatabaseId,
+              name: "Old Section",
+              insertionOrder: null,
+            }),
+            fromPartial({
+              type: "on-database",
+              frontendId: "fe-2" as FrontendId,
+              databaseId: "db-2" as DatabaseId,
+              scene: "Clip 2",
+              insertionOrder: null,
+            }),
+          ],
+        })
+      );
+
+      const state = tester
+        .send({ type: "clip-sections-replaced", sections: [] })
+        .getState();
+
+      expect(state.items).toHaveLength(2);
+      expect(state.items.every((i) => i.type === "on-database")).toBe(true);
+    });
+
+    it("Should skip new sections whose beforeClipDatabaseId is not in items", () => {
+      const tester = new ReducerTester(
+        clipStateReducer,
+        createInitialState({
+          items: [
+            fromPartial({
+              type: "on-database",
+              frontendId: "fe-1" as FrontendId,
+              databaseId: "db-1" as DatabaseId,
+              scene: "Clip 1",
+              insertionOrder: null,
+            }),
+          ],
+        })
+      );
+
+      const state = tester
+        .send({
+          type: "clip-sections-replaced",
+          sections: [
+            {
+              databaseId: "db-new-s" as DatabaseId,
+              name: "Ghost",
+              beforeClipDatabaseId: "db-missing" as DatabaseId,
+            },
+          ],
+        })
+        .getState();
+
+      expect(state.items).toHaveLength(1);
+      expect(state.items[0]).toMatchObject({ databaseId: "db-1" });
+    });
+
+    it("Should reset insertion point to end when it pointed at a removed section", () => {
+      const tester = new ReducerTester(
+        clipStateReducer,
+        createInitialState({
+          items: [
+            fromPartial({
+              type: "on-database",
+              frontendId: "fe-1" as FrontendId,
+              databaseId: "db-1" as DatabaseId,
+              scene: "Clip 1",
+              insertionOrder: null,
+            }),
+            fromPartial({
+              type: "clip-section-on-database",
+              frontendId: "fe-old-s" as FrontendId,
+              databaseId: "db-old-s" as DatabaseId,
+              name: "Old",
+              insertionOrder: null,
+            }),
+          ],
+          insertionPoint: {
+            type: "after-clip-section",
+            frontendClipSectionId: "fe-old-s" as FrontendId,
+          },
+        })
+      );
+
+      const state = tester
+        .send({ type: "clip-sections-replaced", sections: [] })
+        .getState();
+
+      expect(state.insertionPoint).toEqual({ type: "end" });
+    });
+
+    it("Should preserve insertion point that targets a still-present clip", () => {
+      const tester = new ReducerTester(
+        clipStateReducer,
+        createInitialState({
+          items: [
+            fromPartial({
+              type: "on-database",
+              frontendId: "fe-1" as FrontendId,
+              databaseId: "db-1" as DatabaseId,
+              scene: "Clip 1",
+              insertionOrder: null,
+            }),
+            fromPartial({
+              type: "clip-section-on-database",
+              frontendId: "fe-old-s" as FrontendId,
+              databaseId: "db-old-s" as DatabaseId,
+              name: "Old",
+              insertionOrder: null,
+            }),
+          ],
+          insertionPoint: {
+            type: "after-clip",
+            frontendClipId: "fe-1" as FrontendId,
+          },
+        })
+      );
+
+      const state = tester
+        .send({ type: "clip-sections-replaced", sections: [] })
+        .getState();
+
+      expect(state.insertionPoint).toEqual({
+        type: "after-clip",
+        frontendClipId: "fe-1",
+      });
+    });
+
     it("Should fire reorder-clip-section effect when moving a section that was optimistic but has been persisted", () => {
       const tester = new ReducerTester(
         clipStateReducer,

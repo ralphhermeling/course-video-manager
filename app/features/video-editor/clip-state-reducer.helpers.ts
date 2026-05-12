@@ -6,6 +6,7 @@ import type {
   ClipReducerAction,
   ClipReducerExec,
   ClipReducerState,
+  ClipSectionOnDatabase,
   ClipSectionOptimisticallyAdded,
   DatabaseId,
   FrontendId,
@@ -638,5 +639,51 @@ export const archiveClips = (
     insertionPoint: insertionPoint,
     clipsToArchive: clipsToArchive,
     clipSectionsToArchive: clipSectionsToArchive,
+  };
+};
+
+export const handleClipSectionsReplaced = (
+  state: ClipReducerState,
+  action: Extract<ClipReducerAction, { type: "clip-sections-replaced" }>
+): ClipReducerState => {
+  const withoutSections = state.items.filter(
+    (item) =>
+      item.type !== "clip-section-on-database" &&
+      item.type !== "clip-section-optimistically-added"
+  );
+
+  const newSectionByClipDbId = new Map(
+    action.sections.map((s) => [s.beforeClipDatabaseId, s])
+  );
+
+  const newItems: TimelineItem[] = [];
+  for (const item of withoutSections) {
+    if (item.type === "on-database") {
+      const match = newSectionByClipDbId.get(item.databaseId);
+      if (match) {
+        const sectionItem: ClipSectionOnDatabase = {
+          type: "clip-section-on-database",
+          frontendId: createFrontendId(),
+          databaseId: match.databaseId,
+          name: match.name,
+          insertionOrder: null,
+        };
+        newItems.push(sectionItem);
+      }
+    }
+    newItems.push(item);
+  }
+
+  const ip = state.insertionPoint;
+  const insertionStillValid =
+    ip.type === "end" ||
+    ip.type === "start" ||
+    (ip.type === "after-clip" &&
+      newItems.some((i) => i.frontendId === ip.frontendClipId));
+
+  return {
+    ...state,
+    items: newItems,
+    insertionPoint: insertionStillValid ? ip : { type: "end" },
   };
 };

@@ -654,7 +654,9 @@ export const handleClipServiceEvent = Effect.fn("handleClipServiceEvent")(
             .where(eq(clipSections.videoId, videoId))
         );
 
-        const inserted: (typeof clipSections.$inferSelect)[] = [];
+        const inserted: Array<
+          typeof clipSections.$inferSelect & { beforeClipId: string }
+        > = [];
         for (const p of validatedProposed) {
           const targetClip = activeClips[p.clipIndex]!;
           const prevClip = activeClips[p.clipIndex - 1];
@@ -676,7 +678,7 @@ export const handleClipServiceEvent = Effect.fn("handleClipServiceEvent")(
           );
 
           if (!row) throw new Error("Failed to insert ClipSection");
-          inserted.push(row);
+          inserted.push({ ...row, beforeClipId: p.beforeClipId });
         }
 
         yield* touchVideoUpdatedAt(db, videoId);

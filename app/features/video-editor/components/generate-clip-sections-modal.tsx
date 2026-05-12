@@ -7,7 +7,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Loader2, Sparkles } from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 
 export type ClipForPreview = {
@@ -32,6 +32,9 @@ export const GenerateClipSectionsModal = (props: {
 }) => {
   const [state, setState] = useState<FetchState>({ kind: "loading" });
   const [confirming, setConfirming] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Record<number, boolean>>(
+    {}
+  );
 
   useEffect(() => {
     if (!props.open) return;
@@ -143,33 +146,63 @@ export const GenerateClipSectionsModal = (props: {
                   groups.push(current);
                 }
 
-                return groups.map((group, i) => (
-                  <div key={i}>
-                    {group.title !== null ? (
-                      <h4 className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">
-                        {group.title}
-                      </h4>
-                    ) : (
-                      <h4 className="text-[11px] uppercase tracking-wider text-muted-foreground/60 italic font-semibold mb-1">
-                        (before first proposed section)
-                      </h4>
-                    )}
-                    <div className="space-y-1.5">
-                      {group.clips.map((clip) => (
-                        <p
-                          key={clip.id}
-                          className="text-foreground/80 leading-snug text-sm"
-                        >
-                          {clip.text.trim() || (
-                            <span className="italic text-muted-foreground">
-                              (empty transcript)
-                            </span>
-                          )}
-                        </p>
-                      ))}
+                return groups.map((group, i) => {
+                  const wordCount = group.clips.reduce(
+                    (sum, c) =>
+                      sum +
+                      c.text.split(/\s+/).filter((w) => w.length > 0).length,
+                    0
+                  );
+                  const expanded = expandedGroups[i] ?? false;
+                  return (
+                    <div key={i}>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedGroups((prev) => ({
+                            ...prev,
+                            [i]: !expanded,
+                          }))
+                        }
+                        className="flex items-center gap-1 w-full text-left mb-1 hover:text-foreground"
+                      >
+                        {expanded ? (
+                          <ChevronDown className="size-3 shrink-0" />
+                        ) : (
+                          <ChevronRight className="size-3 shrink-0" />
+                        )}
+                        {group.title !== null ? (
+                          <h4 className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
+                            {group.title}
+                          </h4>
+                        ) : (
+                          <h4 className="text-[11px] uppercase tracking-wider text-muted-foreground/60 italic font-semibold">
+                            (before first proposed section)
+                          </h4>
+                        )}
+                        <span className="text-[11px] text-muted-foreground/70 font-normal normal-case ml-1">
+                          {wordCount} {wordCount === 1 ? "word" : "words"}
+                        </span>
+                      </button>
+                      {expanded && (
+                        <div className="space-y-1.5 pl-4">
+                          {group.clips.map((clip) => (
+                            <p
+                              key={clip.id}
+                              className="text-foreground/80 leading-snug text-sm"
+                            >
+                              {clip.text.trim() || (
+                                <span className="italic text-muted-foreground">
+                                  (empty transcript)
+                                </span>
+                              )}
+                            </p>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ));
+                  );
+                });
               })()}
             </div>
           )}

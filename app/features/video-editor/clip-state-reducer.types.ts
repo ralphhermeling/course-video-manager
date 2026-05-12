@@ -249,6 +249,14 @@ export type ClipReducerAction =
       databaseId: DatabaseId;
     }
   | {
+      type: "clip-sections-replaced";
+      sections: Array<{
+        databaseId: DatabaseId;
+        name: string;
+        beforeClipDatabaseId: DatabaseId;
+      }>;
+    }
+  | {
       type: "restore-clip";
       clipId: FrontendId;
     }
