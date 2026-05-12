@@ -495,6 +495,15 @@ export const ComponentInner = (props: Route.ComponentProps) => {
             console.error("Failed to delete reference clip section", error);
           });
       }}
+      onRegenerateClipSections={async (videoId, sections) => {
+        try {
+          await clipService.regenerateClipSections({ videoId, sections });
+          revalidator.revalidate();
+        } catch (error) {
+          console.error("Failed to regenerate clip sections", error);
+          throw error;
+        }
+      }}
       error={clipState.error}
       onCreateVideoFromSelection={(
         frontendClipIds,

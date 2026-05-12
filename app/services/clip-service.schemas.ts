@@ -93,6 +93,16 @@ const CreateVideoFromSelectionModeSchema = Schema.Union(
   Schema.Literal("move")
 );
 
+const RegenerateClipSectionsInputSchema = Schema.Struct({
+  videoId: Schema.String,
+  sections: Schema.Array(
+    Schema.Struct({
+      beforeClipId: Schema.String,
+      title: Schema.String,
+    })
+  ),
+});
+
 const CreateVideoFromSelectionInputSchema = Schema.Struct({
   sourceVideoId: Schema.String,
   clipIds: Schema.Array(Schema.String),
@@ -173,5 +183,9 @@ export const ClipServiceEventSchema = Schema.Union(
   Schema.Struct({
     type: Schema.Literal("create-video-from-selection"),
     input: CreateVideoFromSelectionInputSchema,
+  }),
+  Schema.Struct({
+    type: Schema.Literal("regenerate-clip-sections"),
+    input: RegenerateClipSectionsInputSchema,
   })
 );

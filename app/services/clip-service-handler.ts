@@ -620,6 +620,76 @@ export const handleClipServiceEvent = Effect.fn("handleClipServiceEvent")(
         return yield* handleCreateVideoFromSelection(db, event.input, logger);
       }
 
+      case "regenerate-clip-sections": {
+        const { videoId, sections: proposed } = event.input;
+
+        const orderedClips = yield* Effect.promise(() =>
+          db.query.clips.findMany({
+            where: eq(clips.videoId, videoId),
+            orderBy: (table, { asc }) => asc(table.order),
+          })
+        );
+
+        const activeClips = orderedClips.filter((c) => !c.archived);
+        const clipIndexById = new Map(activeClips.map((c, i) => [c.id, i]));
+
+        const seen = new Set<string>();
+        const validatedProposed = proposed
+          .filter((s) => {
+            if (seen.has(s.beforeClipId)) return false;
+            if (!clipIndexById.has(s.beforeClipId)) return false;
+            seen.add(s.beforeClipId);
+            return true;
+          })
+          .map((s) => ({
+            ...s,
+            clipIndex: clipIndexById.get(s.beforeClipId)!,
+          }))
+          .sort((a, b) => a.clipIndex - b.clipIndex);
+
+        yield* Effect.promise(() =>
+          db
+            .update(clipSections)
+            .set({ archived: true })
+            .where(eq(clipSections.videoId, videoId))
+        );
+
+        const inserted: (typeof clipSections.$inferSelect)[] = [];
+        for (const p of validatedProposed) {
+          const targetClip = activeClips[p.clipIndex]!;
+          const prevClip = activeClips[p.clipIndex - 1];
+          const prevOrder = prevClip?.order ?? null;
+          const nextOrder = targetClip.order;
+
+          const [order] = generateNKeysBetween(prevOrder, nextOrder, 1);
+
+          const [row] = yield* Effect.promise(() =>
+            db
+              .insert(clipSections)
+              .values({
+                videoId,
+                name: p.title,
+                order: order!,
+                archived: false,
+              })
+              .returning()
+          );
+
+          if (!row) throw new Error("Failed to insert ClipSection");
+          inserted.push(row);
+        }
+
+        yield* touchVideoUpdatedAt(db, videoId);
+
+        logger.log(videoId, {
+          type: "clip-sections-regenerated",
+          count: inserted.length,
+          titles: inserted.map((s) => s.name),
+        });
+
+        return inserted;
+      }
+
       default: {
         const _exhaustive: never = event;
         throw new Error(`Unknown event type: ${JSON.stringify(_exhaustive)}`);

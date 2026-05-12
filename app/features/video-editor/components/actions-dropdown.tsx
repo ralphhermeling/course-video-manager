@@ -28,6 +28,7 @@ import {
   PencilLineIcon,
   Plus,
   ScrollTextIcon,
+  Sparkles,
   XIcon,
 } from "lucide-react";
 import type { ReferenceCandidate } from "./reference-panel";
@@ -78,6 +79,8 @@ export const ActionsDropdown = (props: {
   referenceVideoId: string | null;
   /** Set or clear the Reference Video */
   setReferenceVideoId: (id: string | null) => void;
+  /** Open the AI-driven ClipSection generation modal */
+  onGenerateClipSectionsClick: () => void;
 }) => {
   const navigate = useNavigate();
 
@@ -113,6 +116,21 @@ export const ActionsDropdown = (props: {
             <span className="font-medium">Rename Video</span>
             <span className="text-xs text-muted-foreground">
               Change the video name
+            </span>
+          </div>
+        </DropdownMenuItem>
+
+        <DropdownMenuItem
+          onSelect={props.onGenerateClipSectionsClick}
+          disabled={!props.allClipsHaveText}
+        >
+          <Sparkles className="w-4 h-4 mr-2" />
+          <div className="flex flex-col">
+            <span className="font-medium">Generate Sections</span>
+            <span className="text-xs text-muted-foreground">
+              {props.allClipsHaveText
+                ? "AI-propose chapters from clip transcripts"
+                : "Waiting for transcription to complete"}
             </span>
           </div>
         </DropdownMenuItem>

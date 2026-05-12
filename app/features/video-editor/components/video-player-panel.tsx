@@ -166,6 +166,10 @@ export const VideoPlayerPanel = () => {
     VideoEditorContext,
     (ctx) => ctx.setReferenceVideoId
   );
+  const onOpenGenerateClipSectionsModal = useContextSelector(
+    VideoEditorContext,
+    (ctx) => ctx.onOpenGenerateClipSectionsModal
+  );
   const isCopied = useContextSelector(
     VideoEditorContext,
     (ctx) => ctx.isCopied
@@ -429,6 +433,7 @@ export const VideoPlayerPanel = () => {
               referenceCandidates={referenceCandidates}
               referenceVideoId={referenceVideoId}
               setReferenceVideoId={setReferenceVideoId}
+              onGenerateClipSectionsClick={onOpenGenerateClipSectionsModal}
             />
             <Button variant="secondary" onClick={onAddNoteFromClipboard}>
               <ClipboardIcon className="w-4 h-4 mr-1" />

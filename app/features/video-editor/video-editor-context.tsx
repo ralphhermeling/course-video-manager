@@ -135,6 +135,9 @@ export type VideoEditorContextType = {
   // Suggestion state for inline display
   suggestionState: SuggestionState;
   setSuggestionState: (state: SuggestionState) => void;
+
+  // AI ClipSection generation
+  onOpenGenerateClipSectionsModal: () => void;
 };
 
 export const VideoEditorContext = createContext<VideoEditorContextType>(null!);

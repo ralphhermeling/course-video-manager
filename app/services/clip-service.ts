@@ -277,6 +277,11 @@ export interface CreateEffectClipAtPositionInput {
   beatType: string;
 }
 
+export interface RegenerateClipSectionsInput {
+  videoId: string;
+  sections: Array<{ beforeClipId: string; title: string }>;
+}
+
 // ============================================================================
 // Create Video From Selection Types
 // ============================================================================
@@ -365,6 +370,11 @@ export interface ClipService {
   createVideoFromSelection(
     input: CreateVideoFromSelectionInput
   ): Promise<Video>;
+
+  // AI-driven bulk replace of all ClipSections on a Video
+  regenerateClipSections(
+    input: RegenerateClipSectionsInput
+  ): Promise<ClipSection[]>;
 }
 
 // ============================================================================
@@ -407,6 +417,10 @@ export type ClipServiceEvent =
   | {
       type: "create-video-from-selection";
       input: CreateVideoFromSelectionInput;
+    }
+  | {
+      type: "regenerate-clip-sections";
+      input: RegenerateClipSectionsInput;
     };
 
 // ============================================================================
@@ -529,6 +543,13 @@ export function createClipService(send: ClipServiceTransport): ClipService {
         type: "create-video-from-selection",
         input,
       }) as Promise<Video>;
+    },
+
+    async regenerateClipSections(input) {
+      return send({
+        type: "regenerate-clip-sections",
+        input,
+      }) as Promise<ClipSection[]>;
     },
   };
 }

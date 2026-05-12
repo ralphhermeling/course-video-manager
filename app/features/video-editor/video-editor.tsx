@@ -9,6 +9,7 @@ import {
   ReferencePanel,
   type ReferenceCandidate,
 } from "./components/reference-panel";
+import { useGenerateClipSectionsModal } from "./hooks/use-generate-clip-sections-modal";
 import { useReferenceVideoId } from "./hooks/use-reference-video-id";
 import { RenameVideoModal } from "@/components/rename-video-modal";
 import { useKeyboardShortcuts } from "./hooks/use-keyboard-shortcuts";
@@ -165,6 +166,10 @@ export const VideoEditor = (props: {
   }) => void;
   onEditReferenceClipSectionName: (clipSectionId: string, name: string) => void;
   onDeleteReferenceClipSection: (clipSectionId: string) => void;
+  onRegenerateClipSections: (
+    videoId: string,
+    sections: Array<{ beforeClipId: string; title: string }>
+  ) => Promise<void>;
   insertionPoint: FrontendInsertionPoint;
   onSetInsertionPoint: (mode: "after" | "before", clipId: FrontendId) => void;
   onDeleteLatestInsertedClip: () => void;
@@ -246,6 +251,18 @@ export const VideoEditor = (props: {
   const [isRenameVideoModalOpen, setIsRenameVideoModalOpen] = useState(false);
   const [isCreateVideoModalOpen, setIsCreateVideoModalOpen] = useState(false);
   const revalidator = useRevalidator();
+
+  const {
+    openForMain: onOpenGenerateClipSectionsModal,
+    openForReference: onOpenGenerateForReference,
+    modal: generateClipSectionsModal,
+  } = useGenerateClipSectionsModal({
+    mainVideoId: props.videoId,
+    mainVideoPath: props.videoPath,
+    clips,
+    referenceCandidates: props.referenceCandidates,
+    onRegenerateClipSections: props.onRegenerateClipSections,
+  });
 
   // Suggestion state for sharing between SuggestionsPanel and ClipTimeline
   const [suggestionState, setSuggestionState] = useState<SuggestionState>({
@@ -521,7 +538,6 @@ export const VideoEditor = (props: {
       isCopied,
       isChaptersCopied,
 
-      // Modal state (local useState, passed through context for access)
       exportToDavinciResolveFetcher,
       isAddVideoModalOpen,
       setIsAddVideoModalOpen,
@@ -534,6 +550,8 @@ export const VideoEditor = (props: {
       // Suggestion state for inline display
       suggestionState,
       setSuggestionState,
+
+      onOpenGenerateClipSectionsModal,
     }),
     [
       state,
@@ -599,6 +617,7 @@ export const VideoEditor = (props: {
       onAddSectionBefore,
       onAddSectionAfter,
       generateDefaultClipSectionName,
+      onOpenGenerateClipSectionsModal,
     ]
   );
 
@@ -643,6 +662,7 @@ export const VideoEditor = (props: {
         onOpenChange={setIsCreateVideoModalOpen}
         onSubmit={handleCreateVideoFromSelection}
       />
+      {generateClipSectionsModal}
     </>
   );
 
@@ -657,6 +677,9 @@ export const VideoEditor = (props: {
           onAddSectionAt={props.onAddReferenceClipSectionAt}
           onEditSectionName={props.onEditReferenceClipSectionName}
           onDeleteSection={props.onDeleteReferenceClipSection}
+          onGenerateClipSections={() =>
+            onOpenGenerateForReference(activeReference)
+          }
           className="h-full"
         />
       </div>

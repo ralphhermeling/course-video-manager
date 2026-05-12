@@ -99,6 +99,11 @@ export type LogEvent =
       sourceVideoId: string;
       clipIds: string[];
       newVideoId: string;
+    }
+  | {
+      type: "clip-sections-regenerated";
+      count: number;
+      titles: string[];
     };
 
 // ============================================================================

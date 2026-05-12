@@ -620,7 +620,12 @@ export const createVideoOperations = (
             clips: {
               where: eq(clips.archived, false),
               orderBy: asc(clips.order),
-              columns: { id: true, order: true, text: true },
+              columns: {
+                id: true,
+                order: true,
+                text: true,
+                transcribedAt: true,
+              },
             },
             clipSections: {
               where: eq(clipSections.archived, false),

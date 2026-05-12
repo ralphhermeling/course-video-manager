@@ -21,9 +21,15 @@ import {
   ChevronsUpDown,
   PencilIcon,
   PlusIcon,
+  Sparkles,
   Trash2Icon,
   X,
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
 
@@ -44,7 +50,12 @@ const loadCollapsed = (): Record<string, boolean> => {
 export type ReferenceCandidate = {
   id: string;
   path: string;
-  clips: Array<{ id: string; order: string; text: string }>;
+  clips: Array<{
+    id: string;
+    order: string;
+    text: string;
+    transcribedAt: Date | null;
+  }>;
   clipSections: Array<{ id: string; order: string; name: string }>;
 };
 
@@ -115,6 +126,7 @@ export const ReferencePanel = (props: {
   }) => void;
   onEditSectionName: (clipSectionId: string, name: string) => void;
   onDeleteSection: (clipSectionId: string) => void;
+  onGenerateClipSections: () => void;
   className?: string;
 }) => {
   const selected =
@@ -190,6 +202,35 @@ export const ReferencePanel = (props: {
           <span className="text-xs font-medium truncate">{selected.path}</span>
         </div>
         <div className="flex items-center gap-1 shrink-0">
+          {(() => {
+            const allTranscribed =
+              selected.clips.length > 0 &&
+              selected.clips.every((c) => c.transcribedAt !== null);
+            const button = (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="size-6 p-0"
+                onClick={props.onGenerateClipSections}
+                disabled={!allTranscribed}
+                aria-label="Generate Sections with AI"
+              >
+                <Sparkles className="size-3" />
+              </Button>
+            );
+            return allTranscribed ? (
+              button
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>{button}</span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Waiting for transcription to complete
+                </TooltipContent>
+              </Tooltip>
+            );
+          })()}
           <Button
             variant="ghost"
             size="sm"
