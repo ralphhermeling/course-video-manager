@@ -35,4 +35,28 @@ describe("isVisibleInTimeline", () => {
     const clips = [{ archived: true }, { archived: false }];
     expect(isVisibleInTimeline(snapshot, clips)).toBe(true);
   });
+
+  it("archive cascade: archiving sole pinning clip hides non-preserved snapshot", () => {
+    const snapshot = { preserved: false };
+    const clipBeforeArchive = [{ archived: false }];
+    expect(isVisibleInTimeline(snapshot, clipBeforeArchive)).toBe(true);
+
+    const clipAfterArchive = [{ archived: true }];
+    expect(isVisibleInTimeline(snapshot, clipAfterArchive)).toBe(false);
+  });
+
+  it("archive cascade: unarchiving clip restores snapshot visibility", () => {
+    const snapshot = { preserved: false };
+    const clipArchived = [{ archived: true }];
+    expect(isVisibleInTimeline(snapshot, clipArchived)).toBe(false);
+
+    const clipRestored = [{ archived: false }];
+    expect(isVisibleInTimeline(snapshot, clipRestored)).toBe(true);
+  });
+
+  it("archive cascade: preserved snapshot stays visible even when all clips archived", () => {
+    const snapshot = { preserved: true };
+    const clips = [{ archived: true }];
+    expect(isVisibleInTimeline(snapshot, clips)).toBe(true);
+  });
 });

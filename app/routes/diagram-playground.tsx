@@ -7,7 +7,6 @@ import {
   sendToParent,
   type ParentToChildMessage,
 } from "@/lib/diagram-protocol";
-import { isVisibleInTimeline } from "@/lib/timeline-visibility";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -43,10 +42,7 @@ function TimelinePanel({
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (cancelled || !data) return;
-        const visible = (data.snapshots as Snapshot[]).filter((s) =>
-          isVisibleInTimeline(s, [])
-        );
-        setSnapshots(visible);
+        setSnapshots(data.snapshots as Snapshot[]);
       })
       .catch(() => {})
       .finally(() => {

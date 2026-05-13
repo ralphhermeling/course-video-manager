@@ -137,6 +137,30 @@ describe("listSnapshotsWithClips", () => {
       expect(result[0]!.clips).toEqual([]);
     }).pipe(Effect.provide(testLayer))
   );
+
+  it.effect("includes archived flag on pinning clips", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const diagram = yield* db.createDiagram();
+      yield* db.updateDiagramHead(diagram.id, scene1);
+
+      const video = yield* db.createStandaloneVideo({ path: "test-video.mp4" });
+      const clips = yield* db.appendClips({
+        videoId: video.id,
+        insertionPoint: { type: "start" },
+        clips: [{ inputVideo: "test.mp4", startTime: 0, endTime: 10 }],
+      });
+      const clip = clips[0]!;
+
+      yield* db.createSnapshotForClip(diagram.id, clip.id);
+      yield* db.archiveClip(clip.id);
+
+      const result = yield* db.listSnapshotsWithClips(diagram.id);
+      expect(result).toHaveLength(1);
+      expect(result[0]!.clips).toHaveLength(1);
+      expect(result[0]!.clips[0]!.archived).toBe(true);
+    }).pipe(Effect.provide(testLayer))
+  );
 });
 
 describe("restoreSnapshotToHead", () => {
