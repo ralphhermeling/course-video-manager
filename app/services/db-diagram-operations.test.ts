@@ -555,3 +555,79 @@ describe("createSnapshot", () => {
       }).pipe(Effect.provide(testLayer))
   );
 });
+
+describe("createSnapshotForClip", () => {
+  const scene = {
+    store: { "shape:abc": { id: "abc", x: 10 } },
+    schema: { schemaVersion: 2 },
+  };
+
+  const createVideoWithClip = Effect.gen(function* () {
+    const db = yield* DBFunctionsService;
+    const video = yield* db.createStandaloneVideo({ path: "test-video.mp4" });
+    const clips = yield* db.appendClips({
+      videoId: video.id,
+      insertionPoint: { type: "start" },
+      clips: [{ inputVideo: "test.mp4", startTime: 0, endTime: 10 }],
+    });
+    return { video, clip: clips[0]! };
+  });
+
+  it.effect("inserts a snapshot row and pins the clip", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const { clip } = yield* createVideoWithClip;
+      const diagram = yield* db.createDiagram();
+      yield* db.updateDiagramHead(diagram.id, scene);
+
+      const snapshot = yield* db.createSnapshotForClip(diagram.id, clip.id);
+
+      expect(snapshot.id).toEqual(expect.any(String));
+      expect(snapshot.diagramId).toBe(diagram.id);
+      expect(snapshot.scene).toEqual(scene);
+      expect(snapshot.preserved).toBe(false);
+
+      const pinnedClip = yield* db.getClipById(clip.id);
+      expect(pinnedClip.diagramSnapshotId).toBe(snapshot.id);
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect(
+    "deduplicates — reuses existing snapshot and re-pins the clip",
+    () =>
+      Effect.gen(function* () {
+        const db = yield* DBFunctionsService;
+        const diagram = yield* db.createDiagram();
+        yield* db.updateDiagramHead(diagram.id, scene);
+
+        const { clip: clip1 } = yield* createVideoWithClip;
+        const snap1 = yield* db.createSnapshotForClip(diagram.id, clip1.id);
+
+        const { clip: clip2 } = yield* createVideoWithClip;
+        const snap2 = yield* db.createSnapshotForClip(diagram.id, clip2.id);
+
+        expect(snap2.id).toBe(snap1.id);
+
+        const pinnedClip2 = yield* db.getClipById(clip2.id);
+        expect(pinnedClip2.diagramSnapshotId).toBe(snap1.id);
+      }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("does not flip preserved:true to false on dedup auto-pin", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const diagram = yield* db.createDiagram();
+      yield* db.updateDiagramHead(diagram.id, scene);
+
+      yield* db.createSnapshot(diagram.id, { preserved: true });
+
+      const { clip } = yield* createVideoWithClip;
+      const snapshot = yield* db.createSnapshotForClip(diagram.id, clip.id);
+
+      expect(snapshot.preserved).toBe(true);
+
+      const pinnedClip = yield* db.getClipById(clip.id);
+      expect(pinnedClip.diagramSnapshotId).toBe(snapshot.id);
+    }).pipe(Effect.provide(testLayer))
+  );
+});
