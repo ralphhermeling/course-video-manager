@@ -4,7 +4,7 @@ import {
   NotFoundError,
   UnknownDBServiceError,
 } from "@/services/db-service-errors";
-import { and, desc, eq, ilike, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, type SQL } from "drizzle-orm";
 import { Effect } from "effect";
 import { hashScene } from "@/lib/scene-hash";
 
@@ -204,6 +204,55 @@ export const createDiagramOperations = (db: DrizzleDB) => {
     return snapshot;
   });
 
+  const listSnapshots = Effect.fn("listSnapshots")(function* (
+    diagramId: string
+  ) {
+    return yield* makeDbCall(() =>
+      db.query.diagramSnapshots.findMany({
+        where: eq(diagramSnapshots.diagramId, diagramId),
+        orderBy: [asc(diagramSnapshots.createdAt)],
+      })
+    );
+  });
+
+  const restoreSnapshotToHead = Effect.fn("restoreSnapshotToHead")(function* (
+    diagramId: string,
+    snapshotId: string
+  ) {
+    const snapshot = yield* makeDbCall(() =>
+      db.query.diagramSnapshots.findFirst({
+        where: and(
+          eq(diagramSnapshots.id, snapshotId),
+          eq(diagramSnapshots.diagramId, diagramId)
+        ),
+      })
+    );
+
+    if (!snapshot) {
+      return yield* new NotFoundError({
+        type: "restoreSnapshotToHead",
+        params: { diagramId, snapshotId },
+      });
+    }
+
+    const results = yield* makeDbCall(() =>
+      db
+        .update(diagrams)
+        .set({ headScene: snapshot.scene, updatedAt: new Date() })
+        .where(eq(diagrams.id, diagramId))
+        .returning()
+    );
+
+    const diagram = results[0];
+    if (!diagram) {
+      return yield* new NotFoundError({
+        type: "restoreSnapshotToHead",
+        params: { diagramId },
+      });
+    }
+    return diagram;
+  });
+
   return {
     createDiagram,
     listDiagrams,
@@ -211,5 +260,7 @@ export const createDiagramOperations = (db: DrizzleDB) => {
     updateDiagram,
     updateDiagramHead,
     createSnapshot,
+    listSnapshots,
+    restoreSnapshotToHead,
   };
 };
