@@ -12,6 +12,13 @@ import {
 import type { ClipService } from "@/services/clip-service";
 import type { EffectsMap } from "use-effect-reducer";
 import type React from "react";
+import { shouldSnapshot } from "@/lib/snapshot-rule";
+import {
+  getActiveDiagramId,
+  getDiagramFocusedDuringClip,
+  resetDiagramFocusTracking,
+  flushDiagramPlayground,
+} from "@/lib/diagram-window";
 
 export interface EditEffectHandlersDeps {
   videoId: string;
@@ -251,6 +258,33 @@ export function createEditEffectHandlers(
                 clips: clips as DB.Clip[],
                 outputPath: effect.outputPath,
               });
+
+              const activeDiagramId = getActiveDiagramId();
+              const diagramFocusedDuringClip = getDiagramFocusedDuringClip();
+
+              const clipsToPin = (clips as DB.Clip[]).filter((clip) =>
+                shouldSnapshot({
+                  activeDiagramId,
+                  clipScene: clip.scene ?? "Camera",
+                  diagramFocusedDuringClip,
+                })
+              );
+
+              if (clipsToPin.length > 0 && activeDiagramId) {
+                resetDiagramFocusTracking();
+                try {
+                  await flushDiagramPlayground();
+                  for (const clip of clipsToPin) {
+                    await fetch(`/api/diagrams/${activeDiagramId}/snapshots`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ clipId: clip.id }),
+                    });
+                  }
+                } catch {
+                  // Auto-pin failures are non-fatal
+                }
+              }
             }
           } catch (e) {
             // Errors are swallowed; polling continues

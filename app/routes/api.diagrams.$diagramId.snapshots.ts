@@ -17,9 +17,16 @@ export const action = async (args: Route.ActionArgs) => {
 
     const preserved =
       typeof body.preserved === "boolean" ? body.preserved : undefined;
+    const clipId = typeof body.clipId === "string" ? body.clipId : undefined;
 
     const db = yield* DBFunctionsService;
-    const snapshot = yield* db.createSnapshot(diagramId, { preserved });
+
+    let snapshot;
+    if (clipId) {
+      snapshot = yield* db.createSnapshotForClip(diagramId, clipId);
+    } else {
+      snapshot = yield* db.createSnapshot(diagramId, { preserved });
+    }
 
     return data({ snapshot });
   }).pipe(

@@ -218,6 +218,10 @@ export const clips = createTable("clip", {
   scene: varchar("scene", { length: 255 }),
   profile: varchar("profile", { length: 255 }),
   beatType: varchar("beat_type", { length: 255 }).notNull().default("none"),
+  diagramSnapshotId: varchar("diagram_snapshot_id", { length: 255 }).references(
+    () => diagramSnapshots.id,
+    { onDelete: "set null" }
+  ),
 });
 
 export const clipSections = createTable("clip_section", {
@@ -254,6 +258,10 @@ export namespace DB {
 
 export const clipsRelations = relations(clips, ({ one }) => ({
   video: one(videos, { fields: [clips.videoId], references: [videos.id] }),
+  diagramSnapshot: one(diagramSnapshots, {
+    fields: [clips.diagramSnapshotId],
+    references: [diagramSnapshots.id],
+  }),
 }));
 
 export const clipSectionsRelations = relations(clipSections, ({ one }) => ({
@@ -423,11 +431,12 @@ export const diagramSnapshots = createTable(
 
 export const diagramSnapshotsRelations = relations(
   diagramSnapshots,
-  ({ one }) => ({
+  ({ one, many }) => ({
     diagram: one(diagrams, {
       fields: [diagramSnapshots.diagramId],
       references: [diagrams.id],
     }),
+    clips: many(clips),
   })
 );
 

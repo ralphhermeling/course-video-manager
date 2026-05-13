@@ -1,5 +1,5 @@
 import type { DrizzleDB } from "@/services/drizzle-service.server";
-import { diagrams, diagramSnapshots } from "@/db/schema";
+import { clips, diagrams, diagramSnapshots } from "@/db/schema";
 import {
   NotFoundError,
   UnknownDBServiceError,
@@ -204,6 +204,22 @@ export const createDiagramOperations = (db: DrizzleDB) => {
     return snapshot;
   });
 
+  const createSnapshotForClip = Effect.fn("createSnapshotForClip")(function* (
+    diagramId: string,
+    clipId: string
+  ) {
+    const snapshot = yield* createSnapshot(diagramId, {});
+
+    yield* makeDbCall(() =>
+      db
+        .update(clips)
+        .set({ diagramSnapshotId: snapshot.id })
+        .where(eq(clips.id, clipId))
+    );
+
+    return snapshot;
+  });
+
   return {
     createDiagram,
     listDiagrams,
@@ -211,5 +227,6 @@ export const createDiagramOperations = (db: DrizzleDB) => {
     updateDiagram,
     updateDiagramHead,
     createSnapshot,
+    createSnapshotForClip,
   };
 };
