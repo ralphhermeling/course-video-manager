@@ -401,3 +401,157 @@ describe("updateDiagramHead", () => {
     }).pipe(Effect.provide(testLayer))
   );
 });
+
+describe("createSnapshot", () => {
+  const scene = {
+    store: { "shape:abc": { id: "abc", x: 10 } },
+    schema: { schemaVersion: 2 },
+  };
+
+  it.effect("inserts a snapshot row from the diagram's headScene", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const diagram = yield* db.createDiagram();
+      yield* db.updateDiagramHead(diagram.id, scene);
+
+      const snapshot = yield* db.createSnapshot(diagram.id, {
+        preserved: true,
+      });
+
+      expect(snapshot.id).toEqual(expect.any(String));
+      expect(snapshot.diagramId).toBe(diagram.id);
+      expect(snapshot.scene).toEqual(scene);
+      expect(snapshot.contentHash).toEqual(expect.any(String));
+      expect(snapshot.contentHash.length).toBe(64);
+      expect(snapshot.preserved).toBe(true);
+      expect(snapshot.createdAt).toBeInstanceOf(Date);
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("defaults preserved to false", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const diagram = yield* db.createDiagram();
+      yield* db.updateDiagramHead(diagram.id, scene);
+
+      const snapshot = yield* db.createSnapshot(diagram.id, {});
+
+      expect(snapshot.preserved).toBe(false);
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("deduplicates by contentHash — returns existing row", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const diagram = yield* db.createDiagram();
+      yield* db.updateDiagramHead(diagram.id, scene);
+
+      const first = yield* db.createSnapshot(diagram.id, {});
+      const second = yield* db.createSnapshot(diagram.id, {});
+
+      expect(second.id).toBe(first.id);
+      expect(second.contentHash).toBe(first.contentHash);
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("dedup does not flip preserved:true back to false", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const diagram = yield* db.createDiagram();
+      yield* db.updateDiagramHead(diagram.id, scene);
+
+      yield* db.createSnapshot(diagram.id, { preserved: true });
+      const second = yield* db.createSnapshot(diagram.id, {
+        preserved: false,
+      });
+
+      expect(second.preserved).toBe(true);
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect(
+    "dedup flips preserved:false to true when caller passes preserved:true",
+    () =>
+      Effect.gen(function* () {
+        const db = yield* DBFunctionsService;
+        const diagram = yield* db.createDiagram();
+        yield* db.updateDiagramHead(diagram.id, scene);
+
+        const first = yield* db.createSnapshot(diagram.id, {
+          preserved: false,
+        });
+        expect(first.preserved).toBe(false);
+
+        const second = yield* db.createSnapshot(diagram.id, {
+          preserved: true,
+        });
+        expect(second.id).toBe(first.id);
+        expect(second.preserved).toBe(true);
+      }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("different headScene content produces a new snapshot row", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const diagram = yield* db.createDiagram();
+
+      yield* db.updateDiagramHead(diagram.id, scene);
+      const first = yield* db.createSnapshot(diagram.id, {});
+
+      const scene2 = {
+        store: { "shape:abc": { id: "abc", x: 999 } },
+        schema: { schemaVersion: 2 },
+      };
+      yield* db.updateDiagramHead(diagram.id, scene2);
+      const second = yield* db.createSnapshot(diagram.id, {});
+
+      expect(second.id).not.toBe(first.id);
+      expect(second.contentHash).not.toBe(first.contentHash);
+      expect(second.scene).toEqual(scene2);
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("fails with NotFoundError when diagram does not exist", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const result = yield* db
+        .createSnapshot("nonexistent-id", {})
+        .pipe(Effect.flip);
+      expect(result._tag).toBe("NotFoundError");
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("fails when headScene is null", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const diagram = yield* db.createDiagram();
+
+      const result = yield* db.createSnapshot(diagram.id, {}).pipe(Effect.flip);
+      expect(result._tag).toBe("NotFoundError");
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect(
+    "produces same hash regardless of key insertion order in headScene",
+    () =>
+      Effect.gen(function* () {
+        const db = yield* DBFunctionsService;
+
+        const d1 = yield* db.createDiagram();
+        yield* db.updateDiagramHead(d1.id, {
+          store: { "shape:a": { id: "a", x: 1 } },
+          schema: { schemaVersion: 2 },
+        });
+        const s1 = yield* db.createSnapshot(d1.id, {});
+
+        const d2 = yield* db.createDiagram();
+        yield* db.updateDiagramHead(d2.id, {
+          schema: { schemaVersion: 2 },
+          store: { "shape:a": { x: 1, id: "a" } },
+        });
+        const s2 = yield* db.createSnapshot(d2.id, {});
+
+        expect(s1.contentHash).toBe(s2.contentHash);
+      }).pipe(Effect.provide(testLayer))
+  );
+});

@@ -1,11 +1,12 @@
 import type { DrizzleDB } from "@/services/drizzle-service.server";
-import { diagrams } from "@/db/schema";
+import { diagrams, diagramSnapshots } from "@/db/schema";
 import {
   NotFoundError,
   UnknownDBServiceError,
 } from "@/services/db-service-errors";
 import { and, desc, eq, ilike, type SQL } from "drizzle-orm";
 import { Effect } from "effect";
+import { hashScene } from "@/lib/scene-hash";
 
 const makeDbCall = <T>(fn: () => Promise<T>) => {
   return Effect.tryPromise({
@@ -132,11 +133,83 @@ export const createDiagramOperations = (db: DrizzleDB) => {
     return diagram;
   });
 
+  const createSnapshot = Effect.fn("createSnapshot")(function* (
+    diagramId: string,
+    opts: { preserved?: boolean }
+  ) {
+    const diagram = yield* makeDbCall(() =>
+      db.query.diagrams.findFirst({
+        where: eq(diagrams.id, diagramId),
+      })
+    );
+
+    if (!diagram) {
+      return yield* new NotFoundError({
+        type: "createSnapshot",
+        params: { diagramId },
+      });
+    }
+
+    if (diagram.headScene == null) {
+      return yield* new NotFoundError({
+        type: "createSnapshot",
+        params: { diagramId, reason: "headScene is null" },
+      });
+    }
+
+    const contentHash = hashScene(diagram.headScene);
+    const preserved = opts.preserved ?? false;
+
+    const existing = yield* makeDbCall(() =>
+      db.query.diagramSnapshots.findFirst({
+        where: and(
+          eq(diagramSnapshots.diagramId, diagramId),
+          eq(diagramSnapshots.contentHash, contentHash)
+        ),
+      })
+    );
+
+    if (existing) {
+      if (preserved && !existing.preserved) {
+        const updated = yield* makeDbCall(() =>
+          db
+            .update(diagramSnapshots)
+            .set({ preserved: true })
+            .where(eq(diagramSnapshots.id, existing.id))
+            .returning()
+        );
+        return updated[0]!;
+      }
+      return existing;
+    }
+
+    const results = yield* makeDbCall(() =>
+      db
+        .insert(diagramSnapshots)
+        .values({
+          diagramId,
+          scene: diagram.headScene!,
+          contentHash,
+          preserved,
+        })
+        .returning()
+    );
+
+    const snapshot = results[0];
+    if (!snapshot) {
+      return yield* new UnknownDBServiceError({
+        cause: "No snapshot was returned from the database",
+      });
+    }
+    return snapshot;
+  });
+
   return {
     createDiagram,
     listDiagrams,
     getDiagram,
     updateDiagram,
     updateDiagramHead,
+    createSnapshot,
   };
 };

@@ -15,6 +15,10 @@ export default function DiagramPlayground() {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeDiagramId = useRef<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [activeDiagramIdState, setActiveDiagramIdState] = useState<
+    string | null
+  >(null);
+  const [preserving, setPreserving] = useState(false);
 
   const saveHead = useCallback(async () => {
     const ed = editorRef.current;
@@ -51,6 +55,7 @@ export default function DiagramPlayground() {
       }
 
       activeDiagramId.current = diagramId;
+      setActiveDiagramIdState(diagramId);
 
       try {
         const res = await fetch(`/api/diagrams/${diagramId}/head`);
@@ -67,6 +72,38 @@ export default function DiagramPlayground() {
     },
     [saveHead]
   );
+
+  const preserveSnapshot = useCallback(async () => {
+    const id = activeDiagramId.current;
+    if (!id) return;
+
+    setPreserving(true);
+    try {
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+      }
+      await saveHead();
+
+      const res = await fetch(`/api/diagrams/${id}/snapshots`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preserved: true }),
+      });
+      if (!res.ok) {
+        toast.error("Failed to preserve snapshot");
+        return;
+      }
+      const data = await res.json();
+      if (data.snapshot) {
+        toast.success("Preserved Snapshot saved");
+      }
+    } catch {
+      toast.error("Failed to preserve snapshot");
+    } finally {
+      setPreserving(false);
+    }
+  }, [saveHead]);
 
   useEffect(() => {
     const unsub = subscribeChild((msg: ParentToChildMessage) => {
@@ -144,7 +181,7 @@ export default function DiagramPlayground() {
   );
 
   return (
-    <div className="h-screen w-screen">
+    <div className="h-screen w-screen relative">
       <Tldraw
         onMount={handleMount}
         colorScheme="dark"
@@ -152,6 +189,15 @@ export default function DiagramPlayground() {
         acceptedVideoMimeTypes={[]}
         embeds={[]}
       />
+      {activeDiagramIdState && (
+        <button
+          onClick={preserveSnapshot}
+          disabled={preserving}
+          className="absolute top-2 right-2 z-50 rounded bg-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-100 hover:bg-zinc-600 disabled:opacity-50"
+        >
+          {preserving ? "Preserving…" : "Preserve Snapshot"}
+        </button>
+      )}
     </div>
   );
 }

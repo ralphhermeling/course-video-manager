@@ -10,6 +10,7 @@ import {
   pgTableCreator,
   text,
   timestamp,
+  uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core";
 
@@ -391,6 +392,44 @@ export const diagrams = createTable("diagram", {
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
 });
+
+export const diagramSnapshots = createTable(
+  "diagram_snapshot",
+  {
+    id: varchar("id", { length: 255 })
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    diagramId: varchar("diagram_id", { length: 255 })
+      .notNull()
+      .references(() => diagrams.id, { onDelete: "cascade" }),
+    scene: jsonb("scene").notNull(),
+    contentHash: varchar("content_hash", { length: 255 }).notNull(),
+    preserved: boolean("preserved").notNull().default(false),
+    createdAt: timestamp("created_at", {
+      mode: "date",
+      withTimezone: true,
+    })
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    uniqueIndex("diagram_snapshot_diagram_id_content_hash_idx").on(
+      table.diagramId,
+      table.contentHash
+    ),
+  ]
+);
+
+export const diagramSnapshotsRelations = relations(
+  diagramSnapshots,
+  ({ one }) => ({
+    diagram: one(diagrams, {
+      fields: [diagramSnapshots.diagramId],
+      references: [diagrams.id],
+    }),
+  })
+);
 
 // Thumbnails table for layered thumbnail compositing
 export const thumbnails = createTable("thumbnail", {

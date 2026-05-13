@@ -154,6 +154,7 @@ export class DBFunctionsService extends Effect.Service<DBFunctionsService>()(
         getDiagram,
         updateDiagram,
         updateDiagramHead,
+        createSnapshot,
       } = createDiagramOperations(db);
 
       return {
@@ -267,6 +268,7 @@ export class DBFunctionsService extends Effect.Service<DBFunctionsService>()(
         getDiagram,
         updateDiagram,
         updateDiagramHead,
+        createSnapshot,
       };
     }),
   }
