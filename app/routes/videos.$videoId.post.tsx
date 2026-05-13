@@ -179,7 +179,6 @@ export const loader = async (args: Route.LoaderArgs) => {
         isYoutubeAuthenticated,
         thumbnails: videoThumbnails,
         pitchYoutubeTitle: pitch?.youtubeTitle ?? null,
-        pitchNewsletterTitle: pitch?.newsletterTitle ?? null,
         pitchTweet: pitch?.tweet ?? null,
       };
     }
@@ -267,7 +266,6 @@ export const loader = async (args: Route.LoaderArgs) => {
       isYoutubeAuthenticated,
       thumbnails: videoThumbnails,
       pitchYoutubeTitle: pitch?.youtubeTitle ?? null,
-      pitchNewsletterTitle: pitch?.newsletterTitle ?? null,
       pitchTweet: pitch?.tweet ?? null,
     };
   }).pipe(
@@ -315,7 +313,6 @@ export default function PostPageRoute(props: Route.ComponentProps) {
     thumbnails,
     videoExists,
     pitchYoutubeTitle,
-    pitchNewsletterTitle,
     pitchTweet,
   } = props.loaderData;
 
@@ -465,7 +462,6 @@ export default function PostPageRoute(props: Route.ComponentProps) {
             includeCourseStructure={includeCourseStructure}
             clipSections={clipSections}
             pitchYoutubeTitle={pitchYoutubeTitle}
-            pitchNewsletterTitle={pitchNewsletterTitle}
             pitchTweet={pitchTweet}
           />
         </div>

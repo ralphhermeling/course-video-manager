@@ -3,7 +3,6 @@
 import { useContext, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { UploadContext } from "@/features/upload-manager/upload-context";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
@@ -15,15 +14,8 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   CheckCircle2Icon,
+  CopyIcon,
   LinkIcon,
   Loader2Icon,
   SparklesIcon,
@@ -41,14 +33,13 @@ import {
 } from "@/components/ui/card";
 import type { CourseStructure } from "@/components/video-context-panel";
 import type { SectionWithWordCount } from "@/features/article-writer/types";
+import { PostPageOverwriteDialog } from "./post-page-overwrite-dialog";
 import { ThumbnailSelector } from "./post-page-thumbnail-selector";
 import { validateYoutubeTitle } from "./post-page-validation";
 
 const POST_TITLE_STORAGE_KEY = (videoId: string) => `post-title-${videoId}`;
 const POST_DESCRIPTION_STORAGE_KEY = (videoId: string) =>
   `post-description-${videoId}`;
-const POST_NEWSLETTER_TITLE_STORAGE_KEY = (videoId: string) =>
-  `post-newsletter-title-${videoId}`;
 const POST_TWEET_STORAGE_KEY = (videoId: string) => `post-tweet-${videoId}`;
 const YOUTUBE_VIDEO_ID_STORAGE_KEY = (videoId: string) =>
   `youtube-video-id-${videoId}`;
@@ -64,7 +55,6 @@ export function PostPage({
   includeCourseStructure,
   clipSections,
   pitchYoutubeTitle,
-  pitchNewsletterTitle,
   pitchTweet,
 }: {
   videoId: string;
@@ -77,7 +67,6 @@ export function PostPage({
   includeCourseStructure: boolean;
   clipSections: SectionWithWordCount[];
   pitchYoutubeTitle: string | null;
-  pitchNewsletterTitle: string | null;
   pitchTweet: string | null;
 }) {
   // Title and description with localStorage persistence, pitch pre-fill as fallback
@@ -93,15 +82,6 @@ export function PostPage({
       return localStorage.getItem(POST_DESCRIPTION_STORAGE_KEY(videoId)) ?? "";
     }
     return "";
-  });
-  const [newsletterTitle, setNewsletterTitle] = useState(() => {
-    if (typeof localStorage !== "undefined") {
-      const stored = localStorage.getItem(
-        POST_NEWSLETTER_TITLE_STORAGE_KEY(videoId)
-      );
-      if (stored !== null) return stored;
-    }
-    return pitchNewsletterTitle ?? "";
   });
   const [tweet, setTweet] = useState(() => {
     if (typeof localStorage !== "undefined") {
@@ -126,15 +106,6 @@ export function PostPage({
 
   useEffect(() => {
     if (typeof localStorage !== "undefined") {
-      localStorage.setItem(
-        POST_NEWSLETTER_TITLE_STORAGE_KEY(videoId),
-        newsletterTitle
-      );
-    }
-  }, [newsletterTitle, videoId]);
-
-  useEffect(() => {
-    if (typeof localStorage !== "undefined") {
       localStorage.setItem(POST_TWEET_STORAGE_KEY(videoId), tweet);
     }
   }, [tweet, videoId]);
@@ -145,9 +116,10 @@ export function PostPage({
 
   // Confirmation dialog state
   const [confirmOverwriteField, setConfirmOverwriteField] = useState<
-    "title" | "description" | null
+    "title" | "description" | "tweet" | null
   >(null);
   const [pendingGeneratedText, setPendingGeneratedText] = useState<string>("");
+  const [currentFieldText, setCurrentFieldText] = useState<string>("");
 
   // Visibility state
   const [privacyStatus, setPrivacyStatus] = useState<"public" | "unlisted">(
@@ -245,6 +217,7 @@ export function PostPage({
     try {
       const generatedText = await generateContent("youtube-title-single");
       if (title.trim()) {
+        setCurrentFieldText(title);
         setPendingGeneratedText(generatedText);
         setConfirmOverwriteField("title");
       } else {
@@ -262,6 +235,7 @@ export function PostPage({
     try {
       const generatedText = await generateContent("youtube-description");
       if (description.trim()) {
+        setCurrentFieldText(description);
         setPendingGeneratedText(generatedText);
         setConfirmOverwriteField("description");
       } else {
@@ -279,14 +253,33 @@ export function PostPage({
       setTitle(pendingGeneratedText);
     } else if (confirmOverwriteField === "description") {
       setDescription(pendingGeneratedText);
+    } else if (confirmOverwriteField === "tweet") {
+      setTweet(pendingGeneratedText);
     }
     setConfirmOverwriteField(null);
     setPendingGeneratedText("");
+    setCurrentFieldText("");
   };
 
   const handleCancelOverwrite = () => {
     setConfirmOverwriteField(null);
     setPendingGeneratedText("");
+    setCurrentFieldText("");
+  };
+
+  const handleCopyFromPitch = (field: "title" | "tweet") => {
+    const pitchValue = field === "title" ? pitchYoutubeTitle : pitchTweet;
+    if (!pitchValue) return;
+
+    const currentValue = field === "title" ? title : tweet;
+    if (currentValue.trim()) {
+      setCurrentFieldText(currentValue);
+      setPendingGeneratedText(pitchValue);
+      setConfirmOverwriteField(field);
+    } else {
+      if (field === "title") setTitle(pitchValue);
+      else setTweet(pitchValue);
+    }
   };
 
   const titleValidationError = validateYoutubeTitle(title);
@@ -430,24 +423,36 @@ export function PostPage({
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label htmlFor="title">Title</Label>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleGenerateTitle}
-              disabled={isGeneratingTitle || isGeneratingDescription}
-            >
-              {isGeneratingTitle ? (
-                <>
-                  <Loader2Icon className="h-4 w-4 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <SparklesIcon className="h-4 w-4" />
-                  Generate
-                </>
+            <div className="flex items-center gap-2">
+              {pitchYoutubeTitle && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleCopyFromPitch("title")}
+                >
+                  <CopyIcon className="h-4 w-4" />
+                  Copy from Pitch
+                </Button>
               )}
-            </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleGenerateTitle}
+                disabled={isGeneratingTitle || isGeneratingDescription}
+              >
+                {isGeneratingTitle ? (
+                  <>
+                    <Loader2Icon className="h-4 w-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <SparklesIcon className="h-4 w-4" />
+                    Generate
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
           <Textarea
             id="title"
@@ -511,17 +516,19 @@ export function PostPage({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="newsletterTitle">Newsletter Title</Label>
-          <Input
-            id="newsletterTitle"
-            value={newsletterTitle}
-            onChange={(e) => setNewsletterTitle(e.target.value)}
-            placeholder="Enter newsletter title..."
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="tweet">Tweet</Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="tweet">Tweet</Label>
+            {pitchTweet && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleCopyFromPitch("tweet")}
+              >
+                <CopyIcon className="h-4 w-4" />
+                Copy from Pitch
+              </Button>
+            )}
+          </div>
           <Textarea
             id="tweet"
             value={tweet}
@@ -654,29 +661,13 @@ export function PostPage({
         </div>
       </div>
 
-      {/* Overwrite confirmation dialog (YouTube) */}
-      <Dialog
-        open={confirmOverwriteField !== null}
-        onOpenChange={(open) => {
-          if (!open) handleCancelOverwrite();
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Replace existing content?</DialogTitle>
-            <DialogDescription>
-              The {confirmOverwriteField} field already has content. Do you want
-              to replace it with the generated text?
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={handleCancelOverwrite}>
-              Cancel
-            </Button>
-            <Button onClick={handleConfirmOverwrite}>Replace</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <PostPageOverwriteDialog
+        field={confirmOverwriteField}
+        currentText={currentFieldText}
+        pendingText={pendingGeneratedText}
+        onConfirm={handleConfirmOverwrite}
+        onCancel={handleCancelOverwrite}
+      />
     </>
   );
 }
