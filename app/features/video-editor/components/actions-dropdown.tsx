@@ -119,7 +119,7 @@ export const ActionsDropdown = (props: {
             <span className="font-medium">Generate Sections</span>
             <span className="text-xs text-muted-foreground">
               {props.allClipsHaveText
-                ? "AI-propose chapters from clip transcripts"
+                ? "AI-propose ClipSections from clip transcripts"
                 : "Waiting for transcription to complete"}
             </span>
           </div>

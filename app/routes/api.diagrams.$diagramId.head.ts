@@ -24,6 +24,10 @@ export const loader = async (args: Route.LoaderArgs) => {
 };
 
 export const action = async (args: Route.ActionArgs) => {
+  if (args.request.method !== "PATCH") {
+    throw data("Method not allowed", { status: 405 });
+  }
+
   const { diagramId } = args.params;
   const body = await args.request.json();
 

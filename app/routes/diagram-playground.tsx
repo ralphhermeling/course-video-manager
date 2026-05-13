@@ -9,6 +9,7 @@ import {
 } from "@/lib/diagram-protocol";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DiagramThumbnail } from "@/features/diagrams/diagram-thumbnail";
 
 const DEBOUNCE_MS = 500;
 
@@ -92,7 +93,10 @@ function TimelinePanel({
           key={snapshot.id}
           className="flex items-center gap-2 rounded border border-zinc-700 bg-zinc-800 px-2 py-1.5"
         >
-          <div className="h-8 w-10 shrink-0 rounded bg-zinc-700" />
+          <DiagramThumbnail
+            scene={snapshot.scene}
+            className="h-8 w-10 shrink-0 overflow-hidden rounded bg-zinc-700"
+          />
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
             <div className="flex items-center gap-1.5">
               {snapshot.preserved && (
@@ -139,7 +143,7 @@ export default function DiagramPlayground() {
     const { document } = getSnapshot(ed.store);
     try {
       await fetch(`/api/diagrams/${id}/head`, {
-        method: "POST",
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(document),
       });
@@ -245,7 +249,7 @@ export default function DiagramPlayground() {
         if (ed && id) {
           const { document } = getSnapshot(ed.store);
           fetch(`/api/diagrams/${id}/head`, {
-            method: "POST",
+            method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(document),
           })

@@ -3,6 +3,7 @@ import {
   subscribeParent,
   type ChildToParentMessage,
 } from "./diagram-protocol";
+import { notifyDiagramFocus } from "./diagram-focus-tracking";
 
 const PLAYGROUND_PATH = "/diagram-playground";
 const WINDOW_NAME = "cvm-diagrams";
@@ -13,7 +14,6 @@ let pendingDiagramId: string | null = null;
 let unsubscribe: (() => void) | null = null;
 
 let _activeDiagramId: string | null = null;
-let _diagramFocusedDuringClip = false;
 
 function ensureSubscribed(): void {
   if (unsubscribe) return;
@@ -29,7 +29,7 @@ function ensureSubscribed(): void {
       pendingDiagramId = null;
     }
     if (msg.type === "focus") {
-      _diagramFocusedDuringClip = true;
+      notifyDiagramFocus();
     }
   });
 }
@@ -72,13 +72,11 @@ export function getActiveDiagramId(): string | null {
   return _activeDiagramId;
 }
 
-export function getDiagramFocusedDuringClip(): boolean {
-  return _diagramFocusedDuringClip;
-}
-
-export function resetDiagramFocusTracking(): void {
-  _diagramFocusedDuringClip = false;
-}
+export {
+  getDiagramFocusedDuringClip,
+  startDiagramFocusTracking,
+  stopDiagramFocusTracking,
+} from "./diagram-focus-tracking";
 
 export function flushDiagramPlayground(): Promise<void> {
   const handle = getPlaygroundHandle();

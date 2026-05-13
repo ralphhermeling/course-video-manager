@@ -16,7 +16,8 @@ import { shouldSnapshot } from "@/lib/snapshot-rule";
 import {
   getActiveDiagramId,
   getDiagramFocusedDuringClip,
-  resetDiagramFocusTracking,
+  startDiagramFocusTracking,
+  stopDiagramFocusTracking,
   flushDiagramPlayground,
 } from "@/lib/diagram-window";
 
@@ -234,6 +235,8 @@ export function createEditEffectHandlers(
     "start-session-polling": (_state, effect, dispatch) => {
       let unmounted = false;
 
+      startDiagramFocusTracking();
+
       (async () => {
         while (!unmounted) {
           // Stop polling when session is done
@@ -262,6 +265,12 @@ export function createEditEffectHandlers(
               const activeDiagramId = getActiveDiagramId();
               const diagramFocusedDuringClip = getDiagramFocusedDuringClip();
 
+              // Re-arm the focus buffer for the next clip's window before any
+              // awaits below, so focus events that arrive while we're flushing
+              // the diagram window are attributed to the next clip, not this
+              // one.
+              startDiagramFocusTracking();
+
               const clipsToPin = (clips as DB.Clip[]).filter((clip) =>
                 shouldSnapshot({
                   activeDiagramId,
@@ -271,7 +280,6 @@ export function createEditEffectHandlers(
               );
 
               if (clipsToPin.length > 0 && activeDiagramId) {
-                resetDiagramFocusTracking();
                 try {
                   await flushDiagramPlayground();
                   for (const clip of clipsToPin) {
@@ -291,10 +299,12 @@ export function createEditEffectHandlers(
           }
           await new Promise((resolve) => setTimeout(resolve, 500));
         }
+        stopDiagramFocusTracking();
       })();
 
       return () => {
         unmounted = true;
+        stopDiagramFocusTracking();
       };
     },
     "create-clip-section-at": (_state, effect, dispatch) => {

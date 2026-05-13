@@ -4,7 +4,7 @@ import {
   NotFoundError,
   UnknownDBServiceError,
 } from "@/services/db-service-errors";
-import { and, asc, desc, eq, ilike, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, max, sql, type SQL } from "drizzle-orm";
 import { Effect } from "effect";
 import { hashScene } from "@/lib/scene-hash";
 
@@ -65,11 +65,33 @@ export const createDiagramOperations = (db: DrizzleDB) => {
       conditions.push(ilike(diagrams.name, `%${opts.nameFilter}%`));
     }
 
-    return yield* makeDbCall(() =>
-      db.query.diagrams.findMany({
-        where: conditions.length > 0 ? and(...conditions) : undefined,
-        orderBy: [desc(diagrams.updatedAt)],
+    // Per-diagram lastClipPinAt: max(createdAt) of non-archived clips
+    // pinning to any snapshot of the diagram. Computed as a left-joinable
+    // subquery so the sort surface accepts both inputs (lastClipPinAt and
+    // headUpdatedAt) without restructuring as new pin sources land.
+    const lastClipPinAt = db
+      .select({
+        diagramId: diagramSnapshots.diagramId,
+        lastClipPinAt: max(clips.createdAt).as("last_clip_pin_at"),
       })
+      .from(diagramSnapshots)
+      .innerJoin(clips, eq(clips.diagramSnapshotId, diagramSnapshots.id))
+      .where(eq(clips.archived, false))
+      .groupBy(diagramSnapshots.diagramId)
+      .as("last_clip_pin");
+
+    return yield* makeDbCall(() =>
+      db
+        .select({ diagram: diagrams })
+        .from(diagrams)
+        .leftJoin(lastClipPinAt, eq(lastClipPinAt.diagramId, diagrams.id))
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .orderBy(
+          desc(
+            sql`GREATEST(${lastClipPinAt.lastClipPinAt}, ${diagrams.updatedAt})`
+          )
+        )
+        .then((rows) => rows.map((r) => r.diagram))
     );
   });
 
@@ -215,6 +237,24 @@ export const createDiagramOperations = (db: DrizzleDB) => {
     );
   });
 
+  const getDiagramSnapshot = Effect.fn("getDiagramSnapshot")(function* (
+    snapshotId: string
+  ) {
+    const snapshot = yield* makeDbCall(() =>
+      db.query.diagramSnapshots.findFirst({
+        where: eq(diagramSnapshots.id, snapshotId),
+      })
+    );
+
+    if (!snapshot) {
+      return yield* new NotFoundError({
+        type: "getDiagramSnapshot",
+        params: { snapshotId },
+      });
+    }
+    return snapshot;
+  });
+
   const listSnapshotsWithClips = Effect.fn("listSnapshotsWithClips")(function* (
     diagramId: string
   ) {
@@ -314,6 +354,7 @@ export const createDiagramOperations = (db: DrizzleDB) => {
     updateDiagram,
     updateDiagramHead,
     createSnapshot,
+    getDiagramSnapshot,
     listSnapshots,
     listSnapshotsWithClips,
     restoreSnapshotToHead,

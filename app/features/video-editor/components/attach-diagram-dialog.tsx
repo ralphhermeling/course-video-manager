@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
 import type { FrontendId } from "../clip-state-reducer.types";
+import { DiagramThumbnail } from "@/features/diagrams/diagram-thumbnail";
 
 type Diagram = {
   id: string;
@@ -17,6 +18,7 @@ type Diagram = {
 type Snapshot = {
   id: string;
   diagramId: string;
+  scene: unknown;
   preserved: boolean;
   createdAt: string;
 };
@@ -128,6 +130,10 @@ export const AttachDiagramDialog = (props: {
                     }
                   }}
                 >
+                  <DiagramThumbnail
+                    scene={s.scene}
+                    className="h-10 w-14 shrink-0 overflow-hidden rounded border bg-muted"
+                  />
                   <span>
                     {new Date(s.createdAt).toLocaleDateString()}{" "}
                     {new Date(s.createdAt).toLocaleTimeString()}

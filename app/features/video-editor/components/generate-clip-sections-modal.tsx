@@ -94,7 +94,7 @@ export const GenerateClipSectionsModal = (props: {
             <Sparkles className="size-4" /> Generate Sections
           </DialogTitle>
           <DialogDescription>
-            Preview AI-proposed chapters for{" "}
+            Preview AI-proposed ClipSections for{" "}
             <span className="font-medium">{props.videoLabel}</span>. Confirming
             replaces all existing ClipSections on this video.
           </DialogDescription>

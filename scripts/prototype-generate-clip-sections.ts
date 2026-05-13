@@ -20,7 +20,7 @@ import { z } from "zod";
 
 // ─── The prompt under test ────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `You generate YouTube-style chapter markers ("ClipSections") for a recorded video.
+const SYSTEM_PROMPT = `You generate ClipSections (YouTube-chapter-style segment markers) for a recorded video.
 
 You are given the video's clips in order. Each clip has an ID and a transcript.
 You may also be given existing ClipSections the author placed by hand — use these
@@ -41,7 +41,7 @@ Title rules:
 Return an array of { beforeClipId, title }. beforeClipId must be a clip ID from the
 input. Order in the array doesn't matter — positions are determined by beforeClipId.
 
-If the video is too short or homogeneous to warrant chapters, return an empty array.`;
+If the video is too short or homogeneous to warrant sectioning, return an empty array.`;
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
 

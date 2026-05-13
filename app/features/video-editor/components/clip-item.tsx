@@ -33,6 +33,8 @@ import {
   getClipPercentComplete,
   getIsClipPortrait,
 } from "../video-editor-selectors";
+import { DiagramThumbnail } from "@/features/diagrams/diagram-thumbnail";
+import { useDiagramSnapshotScene } from "@/features/diagrams/use-diagram-snapshot-scene";
 
 /**
  * Props for the ClipItem component
@@ -229,22 +231,11 @@ export const ClipItem = (props: ClipItemProps) => {
 
             {/* Diagram pin indicator */}
             {clip.type === "on-database" && clip.diagramSnapshotId && (
-              <div className="z-10 relative flex items-center gap-1.5 mt-1">
-                <ImageIcon className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-                <span className="text-xs text-muted-foreground truncate">
-                  {clip.diagramName ?? "Diagram"}
-                </span>
-                <button
-                  className="ml-auto flex-shrink-0 text-muted-foreground hover:text-foreground p-0.5 rounded"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onUnpinDiagram(clip.frontendId);
-                  }}
-                  title="Unpin Diagram"
-                >
-                  <XIcon className="w-3 h-3" />
-                </button>
-              </div>
+              <DiagramPinIndicator
+                snapshotId={clip.diagramSnapshotId}
+                diagramName={clip.diagramName}
+                onUnpin={() => onUnpinDiagram(clip.frontendId)}
+              />
             )}
           </div>
         </button>
@@ -395,5 +386,39 @@ export const ClipItem = (props: ClipItemProps) => {
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
+  );
+};
+
+const DiagramPinIndicator = (props: {
+  snapshotId: string;
+  diagramName: string | null;
+  onUnpin: () => void;
+}) => {
+  const scene = useDiagramSnapshotScene(props.snapshotId);
+
+  return (
+    <div className="z-10 relative flex items-center gap-1.5 mt-1">
+      {scene ? (
+        <DiagramThumbnail
+          scene={scene}
+          className="h-6 w-9 shrink-0 overflow-hidden rounded border bg-muted"
+        />
+      ) : (
+        <ImageIcon className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+      )}
+      <span className="text-xs text-muted-foreground truncate">
+        {props.diagramName ?? "Diagram"}
+      </span>
+      <button
+        className="ml-auto flex-shrink-0 text-muted-foreground hover:text-foreground p-0.5 rounded"
+        onClick={(e) => {
+          e.stopPropagation();
+          props.onUnpin();
+        }}
+        title="Unpin Diagram"
+      >
+        <XIcon className="w-3 h-3" />
+      </button>
+    </div>
   );
 };
