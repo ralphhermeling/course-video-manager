@@ -370,6 +370,19 @@ describe("updateDiagramHead", () => {
     }).pipe(Effect.provide(testLayer))
   );
 
+  it.effect("clears headScene when set to null", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const created = yield* db.createDiagram();
+
+      const scene = { store: { "shape:a": {} }, schema: { schemaVersion: 2 } };
+      yield* db.updateDiagramHead(created.id, scene);
+
+      const cleared = yield* db.updateDiagramHead(created.id, null);
+      expect(cleared.headScene).toBeNull();
+    }).pipe(Effect.provide(testLayer))
+  );
+
   it.effect("preserves name and archived when updating head", () =>
     Effect.gen(function* () {
       const db = yield* DBFunctionsService;

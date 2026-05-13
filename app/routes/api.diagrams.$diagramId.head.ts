@@ -28,7 +28,7 @@ export const action = async (args: Route.ActionArgs) => {
   const body = await args.request.json();
 
   return Effect.gen(function* () {
-    if (!body || typeof body !== "object") {
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
       return yield* Effect.die(
         data("Body must be a JSON object", { status: 400 })
       );

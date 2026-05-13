@@ -59,7 +59,7 @@ export default function DiagramPlayground() {
         if (data.headScene) {
           loadSnapshot(ed.store, { document: data.headScene });
         } else {
-          ed.store.clear();
+          ed.deleteShapes([...ed.getCurrentPageShapeIds()]);
         }
       } catch {
         // Failed to load — keep empty canvas
