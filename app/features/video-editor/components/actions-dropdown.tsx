@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { openPlayground } from "@/lib/diagram-window";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,6 +30,7 @@ import {
   Plus,
   ScrollTextIcon,
   Sparkles,
+  Workflow,
   XIcon,
 } from "lucide-react";
 import type { ReferenceCandidate } from "./reference-panel";
@@ -276,6 +278,16 @@ export const ActionsDropdown = (props: {
             <span className="font-medium">Create Concatenated Video</span>
             <span className="text-xs text-muted-foreground">
               Combine this video with others
+            </span>
+          </div>
+        </DropdownMenuItem>
+
+        <DropdownMenuItem onSelect={() => openPlayground()}>
+          <Workflow className="w-4 h-4 mr-2" />
+          <div className="flex flex-col">
+            <span className="font-medium">Open Diagram Playground</span>
+            <span className="text-xs text-muted-foreground">
+              Open the diagram playground in a popup window
             </span>
           </div>
         </DropdownMenuItem>
