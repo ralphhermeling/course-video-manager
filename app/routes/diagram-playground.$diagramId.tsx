@@ -43,62 +43,10 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { useParams, useNavigate, Link, useRevalidator } from "react-router";
-import { Console, Effect } from "effect";
-import { DBFunctionsService } from "@/services/db-service.server";
-import { runtimeLive } from "@/services/layer.server";
-import { filteredNewestSnapshot } from "@/lib/filtered-newest-snapshot";
-import { data } from "react-router";
 import type { Route } from "./+types/diagram-playground.$diagramId";
+import { loadDiagramPlaygroundActive } from "./diagram-playground.$diagramId.loader.server";
 
-export const loader = async () => {
-  return Effect.gen(function* () {
-    const db = yield* DBFunctionsService;
-    const [diagrams, allSnapshots] = yield* Effect.all(
-      [db.listDiagrams(), db.listAllSnapshotsWithClips()],
-      { concurrency: "unbounded" }
-    );
-
-    const snapshotsByDiagram = new Map<
-      string,
-      {
-        id: string;
-        contentHash: string;
-        preserved: boolean;
-        createdAt: Date;
-        clips: { archived: boolean }[];
-      }[]
-    >();
-    for (const s of allSnapshots) {
-      let arr = snapshotsByDiagram.get(s.diagramId);
-      if (!arr) {
-        arr = [];
-        snapshotsByDiagram.set(s.diagramId, arr);
-      }
-      arr.push(s);
-    }
-
-    return data({
-      diagrams: diagrams.map((d) => {
-        const snapshots = snapshotsByDiagram.get(d.id) ?? [];
-        const newestId = filteredNewestSnapshot(snapshots);
-        const newestSnapshot = newestId
-          ? snapshots.find((s) => s.id === newestId)
-          : null;
-        return {
-          id: d.id,
-          name: d.name,
-          thumbnailContentHash: newestSnapshot?.contentHash ?? null,
-        };
-      }),
-    });
-  }).pipe(
-    Effect.tapErrorCause((e) => Console.dir(e, { depth: null })),
-    Effect.catchAll(() =>
-      Effect.die(data("Internal server error", { status: 500 }))
-    ),
-    runtimeLive.runPromise
-  );
-};
+export const loader = loadDiagramPlaygroundActive;
 
 const DEBOUNCE_MS = 500;
 
