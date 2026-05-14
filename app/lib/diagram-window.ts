@@ -8,62 +8,89 @@ import { notifyDiagramFocus } from "./diagram-focus-tracking";
 const PLAYGROUND_PATH = "/diagram-playground";
 const WINDOW_NAME = "cvm-diagrams";
 const POPUP_FEATURES = "popup,width=1100,height=800";
-
-let childHandle: Window | null = null;
-let unsubscribe: (() => void) | null = null;
+const PLAYGROUND_ALIVE_WINDOW_MS = 5000;
 
 let _activeDiagramId: string | null = null;
+let lastPingAt = 0;
+let livenessSubscribed = false;
+let popupRef: Window | null = null;
 
-function ensureSubscribed(): void {
-  if (unsubscribe) return;
-  unsubscribe = subscribeParent((msg: ChildToParentMessage) => {
-    if (msg.type === "activeDiagramChanged") {
-      _activeDiagramId = msg.diagramId;
-    }
-    if (msg.type === "focus") {
-      notifyDiagramFocus();
-    }
+// Liveness tracking runs in every tab that imports diagram-window so the
+// launcher (sidebar) knows whether a popup is alive. It does NOT pong —
+// the playground's "Editor connected" indicator only goes green when a
+// real Video Editor is mounted (see enableVideoEditorMode).
+function ensureLivenessTracker(): void {
+  if (livenessSubscribed) return;
+  if (typeof window === "undefined") return;
+  livenessSubscribed = true;
+  subscribeParent((msg: ChildToParentMessage) => {
+    if (msg.type === "ping") lastPingAt = Date.now();
   });
 }
 
-export function getPlaygroundHandle(): Window | null {
-  if (childHandle && !childHandle.closed) return childHandle;
-  return null;
+// Called once by the VideoEditor component on mount; returns a cleanup.
+// This is the listener that makes the playground's indicator authoritative —
+// pongs are only sent while an editor is actually mounted.
+export function enableVideoEditorMode(): () => void {
+  if (typeof window === "undefined") return () => {};
+  const unsub = subscribeParent((msg: ChildToParentMessage) => {
+    if (msg.type === "ping") {
+      sendToChild({ type: "pong" });
+    } else if (msg.type === "activeDiagramChanged") {
+      _activeDiagramId = msg.diagramId;
+    } else if (msg.type === "focus") {
+      notifyDiagramFocus();
+    }
+  });
+  // Announce ourselves immediately so the playground's indicator flips green
+  // without waiting for the next ping cycle. The ping/pong heartbeat remains
+  // the source of truth for ongoing liveness.
+  sendToChild({ type: "editorConnected" });
+  return () => {
+    sendToChild({ type: "editorDisconnected" });
+    unsub();
+  };
+}
+
+function isPlaygroundAlive(): boolean {
+  if (popupRef && popupRef.closed) {
+    popupRef = null;
+    lastPingAt = 0;
+    return false;
+  }
+  return Date.now() - lastPingAt < PLAYGROUND_ALIVE_WINDOW_MS;
 }
 
 export function openPlayground(): Window | null {
-  ensureSubscribed();
-  const existing = getPlaygroundHandle();
-  if (existing) {
-    existing.focus();
-    return existing;
+  if (isPlaygroundAlive() && popupRef) {
+    popupRef.focus();
+    return popupRef;
   }
   const w = window.open(PLAYGROUND_PATH, WINDOW_NAME, POPUP_FEATURES);
-  childHandle = w;
+  if (w) popupRef = w;
+  w?.focus();
   return w;
 }
 
 export function openPlaygroundWithDiagram(diagramId: string): void {
-  ensureSubscribed();
-  const existing = getPlaygroundHandle();
-  if (existing) {
-    existing.focus();
-    sendToChild(existing, { type: "loadDiagram", diagramId });
+  if (isPlaygroundAlive() && popupRef) {
+    sendToChild({ type: "loadDiagram", diagramId });
     _activeDiagramId = diagramId;
+    popupRef.focus();
     return;
   }
-
   _activeDiagramId = diagramId;
   const w = window.open(
     `${PLAYGROUND_PATH}/${diagramId}`,
     WINDOW_NAME,
     POPUP_FEATURES
   );
-  childHandle = w;
+  if (w) popupRef = w;
+  w?.focus();
 }
 
 export function getActiveDiagramId(): string | null {
-  if (!getPlaygroundHandle()) return null;
+  if (!isPlaygroundAlive()) return null;
   return _activeDiagramId;
 }
 
@@ -74,8 +101,7 @@ export {
 } from "./diagram-focus-tracking";
 
 export function flushDiagramPlayground(): Promise<void> {
-  const handle = getPlaygroundHandle();
-  if (!handle) return Promise.resolve();
+  if (!isPlaygroundAlive()) return Promise.resolve();
 
   return new Promise<void>((resolve) => {
     const timer = setTimeout(() => {
@@ -89,6 +115,8 @@ export function flushDiagramPlayground(): Promise<void> {
         resolve();
       }
     });
-    sendToChild(handle, { type: "flush" });
+    sendToChild({ type: "flush" });
   });
 }
+
+ensureLivenessTracker();

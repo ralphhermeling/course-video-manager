@@ -138,6 +138,26 @@ export const createDiagramOperations = (db: DrizzleDB) => {
     id: string,
     headScene: unknown
   ) {
+    const existing = yield* makeDbCall(() =>
+      db.query.diagrams.findFirst({
+        where: eq(diagrams.id, id),
+      })
+    );
+
+    if (!existing) {
+      return yield* new NotFoundError({
+        type: "updateDiagramHead",
+        params: { id },
+      });
+    }
+
+    const existingHash =
+      existing.headScene == null ? null : hashScene(existing.headScene);
+    const newHash = headScene == null ? null : hashScene(headScene);
+    if (existingHash === newHash) {
+      return existing;
+    }
+
     const results = yield* makeDbCall(() =>
       db
         .update(diagrams)
@@ -183,8 +203,11 @@ export const createDiagramOperations = (db: DrizzleDB) => {
     const contentHash = hashScene(diagram.headScene);
     const preserved = opts.preserved ?? false;
 
-    // Write thumbnail before DB so a preserved row never references a missing file.
-    if (preserved && opts.thumbnailPng) {
+    // Write thumbnail before DB so a row never references a missing file.
+    // Thumbnails are keyed by (diagramId, contentHash) so writing on every
+    // snapshot that supplies one is safe and lets auto-pin snapshots show a
+    // preview without requiring the user to hit "Preserve".
+    if (opts.thumbnailPng) {
       yield* Effect.try({
         try: () => writeThumbnail(diagramId, contentHash, opts.thumbnailPng!),
         catch: (e) => new UnknownDBServiceError({ cause: e }),
@@ -367,9 +390,12 @@ export const createDiagramOperations = (db: DrizzleDB) => {
 
   const createSnapshotForClip = Effect.fn("createSnapshotForClip")(function* (
     diagramId: string,
-    clipId: string
+    clipId: string,
+    opts: { thumbnailPng?: Buffer } = {}
   ) {
-    const snapshot = yield* createSnapshot(diagramId, {});
+    const snapshot = yield* createSnapshot(diagramId, {
+      thumbnailPng: opts.thumbnailPng,
+    });
 
     yield* makeDbCall(() =>
       db

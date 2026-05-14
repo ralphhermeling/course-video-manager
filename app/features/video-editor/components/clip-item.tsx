@@ -17,7 +17,6 @@ import {
   ChevronRightIcon,
   FilmIcon,
   ImageIcon,
-  LinkIcon,
   Loader2,
   PauseIcon,
   PlusIcon,
@@ -120,11 +119,6 @@ export const ClipItem = (props: ClipItemProps) => {
     VideoEditorContext,
     (ctx) => ctx.onUnpinDiagram
   );
-  const onAttachDiagram = useContextSelector(
-    VideoEditorContext,
-    (ctx) => ctx.onAttachDiagram
-  );
-
   const percentComplete = getClipPercentComplete(clip, currentTimeInClip);
 
   const isPortrait = getIsClipPortrait(clip);
@@ -243,7 +237,6 @@ export const ClipItem = (props: ClipItemProps) => {
               <DiagramPinIndicator
                 snapshotId={clip.diagramSnapshotId}
                 diagramName={clip.diagramName}
-                onUnpin={() => onUnpinDiagram(clip.frontendId)}
               />
             )}
           </div>
@@ -347,7 +340,7 @@ export const ClipItem = (props: ClipItemProps) => {
           Re-transcribe
         </ContextMenuItem>
         <ContextMenuSeparator />
-        {clip.type === "on-database" && clip.diagramSnapshotId ? (
+        {clip.type === "on-database" && clip.diagramSnapshotId && (
           <ContextMenuItem
             onSelect={() => {
               onUnpinDiagram(clip.frontendId);
@@ -355,16 +348,6 @@ export const ClipItem = (props: ClipItemProps) => {
           >
             <XIcon />
             Unpin Diagram
-          </ContextMenuItem>
-        ) : (
-          <ContextMenuItem
-            disabled={clip.type !== "on-database"}
-            onSelect={() => {
-              onAttachDiagram(clip.frontendId);
-            }}
-          >
-            <LinkIcon />
-            Attach Diagram
           </ContextMenuItem>
         )}
         <ContextMenuItem
@@ -424,7 +407,6 @@ export const ClipItem = (props: ClipItemProps) => {
 const DiagramPinIndicator = (props: {
   snapshotId: string;
   diagramName: string | null;
-  onUnpin: () => void;
 }) => {
   const { scene, diagramId, contentHash } = useDiagramSnapshotMeta(
     props.snapshotId
@@ -437,7 +419,7 @@ const DiagramPinIndicator = (props: {
           diagramId={diagramId ?? undefined}
           contentHash={contentHash ?? undefined}
           scene={scene}
-          className="h-6 w-9 shrink-0 overflow-hidden rounded border bg-muted"
+          className="h-6 w-9 shrink-0 overflow-hidden rounded border bg-zinc-900"
         />
       ) : (
         <ImageIcon className="w-3 h-3 text-muted-foreground flex-shrink-0" />
@@ -445,16 +427,6 @@ const DiagramPinIndicator = (props: {
       <span className="text-xs text-muted-foreground truncate">
         {props.diagramName ?? "Diagram"}
       </span>
-      <button
-        className="ml-auto flex-shrink-0 text-muted-foreground hover:text-foreground p-0.5 rounded"
-        onClick={(e) => {
-          e.stopPropagation();
-          props.onUnpin();
-        }}
-        title="Unpin Diagram"
-      >
-        <XIcon className="w-3 h-3" />
-      </button>
     </div>
   );
 };

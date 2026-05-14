@@ -9,7 +9,6 @@ import {
   type ReferenceCandidate,
 } from "./components/reference-panel";
 import { useGenerateClipSectionsModal } from "./hooks/use-generate-clip-sections-modal";
-import { AttachDiagramDialog } from "./components/attach-diagram-dialog";
 import {
   useDiagramPin,
   type UpdateClipDiagramPinFn,
@@ -24,9 +23,11 @@ import {
   Suspense,
   useCallback,
   type ReactNode,
+  useEffect,
   useMemo,
   useState,
 } from "react";
+import { enableVideoEditorMode } from "@/lib/diagram-window";
 import { useFetcher, useRevalidator } from "react-router";
 import { useEffectReducer } from "use-effect-reducer";
 import type {
@@ -219,6 +220,8 @@ export const VideoEditor = (props: {
     [props.items, props.sessions]
   );
 
+  useEffect(() => enableVideoEditorMode(), []);
+
   const { state, dispatch } = useVideoEditor({
     items: timelineItems,
     clips: clips,
@@ -283,13 +286,10 @@ export const VideoEditor = (props: {
     props.onAddClipSection
   );
 
-  const {
-    attachDiagramClipId,
-    onUnpinDiagram,
-    onAttachDiagram,
-    onAttachDiagramSelect,
-    closeAttachDialog,
-  } = useDiagramPin(props.items, props.onUpdateClipDiagramPin);
+  const { onUnpinDiagram } = useDiagramPin(
+    props.items,
+    props.onUpdateClipDiagramPin
+  );
 
   // Setup keyboard shortcuts
   useKeyboardShortcuts(dispatch);
@@ -485,7 +485,6 @@ export const VideoEditor = (props: {
 
       // Diagram pin
       onUnpinDiagram,
-      onAttachDiagram,
     }),
     [
       state,
@@ -553,7 +552,6 @@ export const VideoEditor = (props: {
       generateDefaultClipSectionName,
       onOpenGenerateClipSectionsModal,
       onUnpinDiagram,
-      onAttachDiagram,
     ]
   );
 
@@ -635,11 +633,6 @@ export const VideoEditor = (props: {
       <VideoEditorContext.Provider value={contextValue}>
         {body}
         {modals}
-        <AttachDiagramDialog
-          clipId={attachDiagramClipId}
-          onClose={closeAttachDialog}
-          onSelect={onAttachDiagramSelect}
-        />
       </VideoEditorContext.Provider>
     </div>
   );

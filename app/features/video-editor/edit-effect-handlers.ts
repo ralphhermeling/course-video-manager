@@ -18,8 +18,8 @@ import {
   getDiagramFocusedDuringClip,
   startDiagramFocusTracking,
   stopDiagramFocusTracking,
-  flushDiagramPlayground,
 } from "@/lib/diagram-window";
+import { sendToChild, subscribeParent } from "@/lib/diagram-protocol";
 
 export interface EditEffectHandlersDeps {
   videoId: string;
@@ -237,6 +237,26 @@ export function createEditEffectHandlers(
 
       startDiagramFocusTracking();
 
+      // The Diagram Playground actually creates auto-pin snapshots — it has
+      // the tldraw editor and can render a thumbnail. We just tell it which
+      // clip to pin and, on the ack, push the new pin into reducer state so
+      // the clip's pin indicator updates without waiting for a reload.
+      const unsubAck = subscribeParent((msg) => {
+        if (msg.type !== "snapshotForClipDone" || !msg.ok) return;
+        const item = clipStateRef.current.items.find(
+          (i) => i.type === "on-database" && i.databaseId === msg.clipId
+        );
+        if (item && item.type === "on-database") {
+          dispatch({
+            type: "update-clip-diagram-pin",
+            clipId: item.frontendId,
+            diagramSnapshotId: msg.snapshotId,
+            diagramName: msg.diagramName,
+          });
+        }
+        revalidate();
+      });
+
       (async () => {
         while (!unmounted) {
           // Stop polling when session is done
@@ -271,26 +291,18 @@ export function createEditEffectHandlers(
               // one.
               startDiagramFocusTracking();
 
-              const clipsToPin = (clips as DB.Clip[]).filter((clip) =>
-                shouldSnapshot({
-                  activeDiagramId,
-                  clipScene: clip.scene ?? "Camera",
-                  diagramFocusedDuringClip,
-                })
-              );
+              const shouldPin = shouldSnapshot({
+                activeDiagramId,
+                diagramFocusedDuringClip,
+              });
 
-              if (clipsToPin.length > 0 && activeDiagramId) {
-                try {
-                  await flushDiagramPlayground();
-                  for (const clip of clipsToPin) {
-                    await fetch(`/api/diagrams/${activeDiagramId}/snapshots`, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ clipId: clip.id }),
-                    });
-                  }
-                } catch {
-                  // Auto-pin failures are non-fatal
+              if (shouldPin && activeDiagramId) {
+                for (const clip of clips as DB.Clip[]) {
+                  sendToChild({
+                    type: "snapshotForClip",
+                    diagramId: activeDiagramId,
+                    clipId: clip.id,
+                  });
                 }
               }
             }
@@ -305,6 +317,7 @@ export function createEditEffectHandlers(
       return () => {
         unmounted = true;
         stopDiagramFocusTracking();
+        unsubAck();
       };
     },
     "create-clip-section-at": (_state, effect, dispatch) => {

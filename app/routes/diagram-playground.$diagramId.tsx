@@ -30,6 +30,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { DiagramThumbnail } from "@/features/diagrams/diagram-thumbnail";
+import { renderThumbnailPngBase64 } from "@/features/diagrams/render-thumbnail";
 import { EditableDiagramName } from "@/features/diagrams/editable-diagram-name";
 import {
   TimelinePanel,
@@ -226,29 +227,15 @@ export default function DiagramPlaygroundActive({
       }
       await saveHead();
 
-      const shapeIds = Array.from(ed.getCurrentPageShapeIds());
-      if (shapeIds.length === 0) {
-        toast.error("Cannot preserve an empty diagram");
-        return;
-      }
-
-      let thumbnailPngBase64: string;
+      let thumbnailPngBase64: string | null;
       try {
-        const { blob } = await ed.toImage(shapeIds, {
-          format: "png",
-          background: false,
-          darkMode: true,
-          padding: 32,
-        });
-        const buffer = await blob.arrayBuffer();
-        let binary = "";
-        const bytes = new Uint8Array(buffer);
-        for (let i = 0; i < bytes.byteLength; i++) {
-          binary += String.fromCharCode(bytes[i]!);
-        }
-        thumbnailPngBase64 = btoa(binary);
+        thumbnailPngBase64 = await renderThumbnailPngBase64(ed);
       } catch {
         toast.error("Failed to render thumbnail");
+        return;
+      }
+      if (!thumbnailPngBase64) {
+        toast.error("Cannot preserve an empty diagram");
         return;
       }
 
@@ -347,10 +334,60 @@ export default function DiagramPlaygroundActive({
         } else {
           sendToParent({ type: "flushAck" });
         }
+      } else if (msg.type === "snapshotForClip") {
+        const { clipId, diagramId: targetDiagramId } = msg;
+        void (async () => {
+          let ok = false;
+          let snapshotId: string | null = null;
+          const diagramName =
+            diagrams.find((d) => d.id === targetDiagramId)?.name ?? null;
+          try {
+            const ed = editorRef.current;
+            if (!ed || activeDiagramId.current !== targetDiagramId) return;
+
+            if (saveTimer.current) {
+              clearTimeout(saveTimer.current);
+              saveTimer.current = null;
+            }
+            await saveHead();
+
+            // Auto-pin thumbnails are best-effort; proceed without one if rendering fails.
+            const thumbnailPngBase64 = await renderThumbnailPngBase64(ed).catch(
+              () => null
+            );
+
+            const res = await fetch(
+              `/api/diagrams/${targetDiagramId}/snapshots`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ clipId, thumbnailPngBase64 }),
+              }
+            );
+            ok = res.ok;
+            if (ok) {
+              try {
+                const body = await res.json();
+                snapshotId = body?.snapshot?.id ?? null;
+              } catch {
+                // ignore — snapshotId stays null
+              }
+              setRefreshKey((k) => k + 1);
+            }
+          } finally {
+            sendToParent({
+              type: "snapshotForClipDone",
+              clipId,
+              ok,
+              snapshotId,
+              diagramName,
+            });
+          }
+        })();
       }
     });
     return unsub;
-  }, [navigate]);
+  }, [navigate, saveHead]);
 
   useEffect(() => {
     function onFocus() {
@@ -419,7 +456,15 @@ export default function DiagramPlaygroundActive({
           return;
         }
         if (id === diagramId) {
-          navigate("/diagram-playground");
+          const idx = diagrams.findIndex((d) => d.id === id);
+          const neighbor =
+            (idx >= 0 ? diagrams[idx + 1] : undefined) ??
+            (idx > 0 ? diagrams[idx - 1] : undefined);
+          if (neighbor) {
+            navigate(`/diagram-playground/${neighbor.id}`);
+          } else {
+            navigate("/diagram-playground");
+          }
         } else {
           revalidator.revalidate();
         }
@@ -427,7 +472,7 @@ export default function DiagramPlaygroundActive({
         toast.error("Failed to delete diagram");
       }
     },
-    [diagramId, navigate, revalidator]
+    [diagramId, diagrams, navigate, revalidator]
   );
 
   const handleCreateDiagram = useCallback(async () => {
@@ -572,7 +617,7 @@ export default function DiagramPlaygroundActive({
               className={
                 "absolute bottom-28 right-2 z-50 flex h-9 w-9 items-center justify-center rounded-full shadow " +
                 (editorConnected
-                  ? "bg-emerald-900/80 text-emerald-300"
+                  ? "bg-zinc-700/80 text-zinc-300"
                   : "bg-amber-900/80 text-amber-300")
               }
             >

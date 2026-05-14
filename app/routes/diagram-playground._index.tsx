@@ -3,6 +3,7 @@ import { useNavigate } from "react-router";
 import { Plus } from "lucide-react";
 import { sendToParent } from "@/lib/diagram-protocol";
 import { DiagramThumbnail } from "@/features/diagrams/diagram-thumbnail";
+import { EditableDiagramName } from "@/features/diagrams/editable-diagram-name";
 import { Console, Effect } from "effect";
 import { DBFunctionsService } from "@/services/db-service.server";
 import { runtimeLive } from "@/services/layer.server";
@@ -129,27 +130,33 @@ export default function DiagramPlaygroundHome({
 
             {/* Diagram tiles */}
             {tiles.map((tile) => (
-              <button
+              <div
                 key={tile.id}
-                onClick={() => navigate(`/diagram-playground/${tile.id}`)}
                 className="group flex flex-col overflow-hidden rounded-lg border border-zinc-700 bg-zinc-800 transition-colors hover:border-zinc-500 hover:bg-zinc-700/60"
               >
-                <div className="aspect-[4/3] w-full bg-zinc-900">
+                <button
+                  type="button"
+                  onClick={() => navigate(`/diagram-playground/${tile.id}`)}
+                  className="aspect-[4/3] w-full bg-zinc-900"
+                >
                   <DiagramThumbnail
                     diagramId={tile.id}
                     contentHash={tile.thumbnailContentHash ?? undefined}
                     className="h-full w-full object-contain"
                   />
-                </div>
+                </button>
                 <div className="flex flex-col gap-0.5 px-3 py-2 text-left">
-                  <span className="truncate text-sm font-medium">
-                    {tile.name}
-                  </span>
+                  <EditableDiagramName
+                    diagramId={tile.id}
+                    name={tile.name}
+                    className="block truncate rounded text-sm font-medium hover:bg-zinc-700/60"
+                    inputClassName="w-full rounded bg-zinc-900 px-1 text-sm font-medium text-zinc-100 outline-none ring-1 ring-zinc-500"
+                  />
                   <span className="text-xs text-zinc-400">
                     {formatTimeAgo(new Date(tile.updatedAt))}
                   </span>
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         </div>

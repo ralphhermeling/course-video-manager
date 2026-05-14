@@ -141,7 +141,6 @@ export type VideoEditorContextType = {
 
   // Diagram pin
   onUnpinDiagram: (clipId: FrontendId) => void;
-  onAttachDiagram: (clipId: FrontendId) => void;
 };
 
 export const VideoEditorContext = createContext<VideoEditorContextType>(null!);

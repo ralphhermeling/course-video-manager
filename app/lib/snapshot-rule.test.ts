@@ -2,11 +2,10 @@ import { describe, it, expect } from "vitest";
 import { shouldSnapshot } from "./snapshot-rule";
 
 describe("shouldSnapshot", () => {
-  it("returns true when all three conditions are met", () => {
+  it("returns true when an active diagram is set and it was focused during the clip", () => {
     expect(
       shouldSnapshot({
         activeDiagramId: "diagram-1",
-        clipScene: "Screencast",
         diagramFocusedDuringClip: true,
       })
     ).toBe(true);
@@ -16,67 +15,24 @@ describe("shouldSnapshot", () => {
     expect(
       shouldSnapshot({
         activeDiagramId: null,
-        clipScene: "Screencast",
         diagramFocusedDuringClip: true,
       })
     ).toBe(false);
   });
 
-  it("returns false when clipScene is Camera", () => {
+  it("returns false when the diagram was not focused during the clip", () => {
     expect(
       shouldSnapshot({
         activeDiagramId: "diagram-1",
-        clipScene: "Camera",
-        diagramFocusedDuringClip: true,
-      })
-    ).toBe(false);
-  });
-
-  it("returns false when diagram was not focused during clip", () => {
-    expect(
-      shouldSnapshot({
-        activeDiagramId: "diagram-1",
-        clipScene: "Screencast",
         diagramFocusedDuringClip: false,
       })
     ).toBe(false);
   });
 
-  it("returns false when activeDiagramId is null and clipScene is Camera", () => {
+  it("returns false when both signals are absent", () => {
     expect(
       shouldSnapshot({
         activeDiagramId: null,
-        clipScene: "Camera",
-        diagramFocusedDuringClip: true,
-      })
-    ).toBe(false);
-  });
-
-  it("returns false when activeDiagramId is null and not focused", () => {
-    expect(
-      shouldSnapshot({
-        activeDiagramId: null,
-        clipScene: "Screencast",
-        diagramFocusedDuringClip: false,
-      })
-    ).toBe(false);
-  });
-
-  it("returns false when clipScene is Camera and not focused", () => {
-    expect(
-      shouldSnapshot({
-        activeDiagramId: "diagram-1",
-        clipScene: "Camera",
-        diagramFocusedDuringClip: false,
-      })
-    ).toBe(false);
-  });
-
-  it("returns false when all three conditions are false", () => {
-    expect(
-      shouldSnapshot({
-        activeDiagramId: null,
-        clipScene: "Camera",
         diagramFocusedDuringClip: false,
       })
     ).toBe(false);
@@ -86,21 +42,8 @@ describe("shouldSnapshot", () => {
     expect(
       shouldSnapshot({
         activeDiagramId: "",
-        clipScene: "Screencast",
         diagramFocusedDuringClip: true,
       })
     ).toBe(true);
-  });
-
-  it("uses exact match for Camera — other scene names pass", () => {
-    for (const scene of ["Screencast", "Desktop", "camera", "CAMERA", ""]) {
-      expect(
-        shouldSnapshot({
-          activeDiagramId: "diagram-1",
-          clipScene: scene,
-          diagramFocusedDuringClip: true,
-        })
-      ).toBe(true);
-    }
   });
 });

@@ -6,15 +6,16 @@ The Video : Clip pattern is the model: a singular sidebar identity, with immutab
 
 ## Snapshot Rule
 
-On Clip persist, auto-pin the Active Diagram's head into a new DiagramSnapshot iff **all three** hold:
+On Clip persist, auto-pin the Active Diagram's head into a new DiagramSnapshot iff **both** hold:
 
 1. **Active Diagram** is non-null.
-2. `clip.scene !== "Camera"` (the OBS scene already captured at `clips.scene`).
-3. The diagram window received at least one focus event during the Optimistic Clip's lifetime, forwarded to the parent CVM window via `postMessage`.
+2. The diagram window received at least one focus event during the Optimistic Clip's lifetime, forwarded to the parent CVM window via the diagram channel.
 
-Content-hash dedup per Diagram: hash the canonical scene JSON; if a snapshot with that hash already exists for this Diagram, reuse it. Auto-pin is applied without confirmation but is reversible via per-Clip "unpin" / "attach Diagram" actions. The two-of-three reversal affordances mean the predicate doesn't have to be perfect — only right most of the time.
+Content-hash dedup per Diagram: hash the canonical scene JSON; if a snapshot with that hash already exists for this Diagram, reuse it. Auto-pin is applied without confirmation but is reversible via per-Clip "unpin" / "attach Diagram" actions. Per-Clip reversal means the predicate doesn't have to be perfect — only right most of the time.
 
-Rejected: an explicit "checkpoint" button (reintroduces the forgot-to-save problem we're fixing). Rejected: full edit-history snapshotting (overkill; what matters is "what was on screen for this clip", not keystrokes). Rejected: OR-combining scene and focus signals (too noisy — non-Camera scenes can show code, terminal, etc. without the diagram being the subject).
+The earlier formulation also required `clip.scene !== "Camera"`. We dropped it: the OBS scene name was never plumbed into `clips.scene` (recorded clips persisted with `scene: null`), so the predicate silently filtered out every auto-pin. Focus alone is a strong-enough signal in practice — the user had to deliberately bring the diagram window to the foreground during the clip.
+
+Rejected: an explicit "checkpoint" button (reintroduces the forgot-to-save problem we're fixing). Rejected: full edit-history snapshotting (overkill; what matters is "what was on screen for this clip", not keystrokes).
 
 ## Preservation
 

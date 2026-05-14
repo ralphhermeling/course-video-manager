@@ -44,7 +44,9 @@ export const action = async (args: Route.ActionArgs) => {
 
     let snapshot;
     if (clipId) {
-      snapshot = yield* db.createSnapshotForClip(diagramId, clipId);
+      snapshot = yield* db.createSnapshotForClip(diagramId, clipId, {
+        thumbnailPng,
+      });
     } else {
       snapshot = yield* db.createSnapshot(diagramId, {
         preserved,
