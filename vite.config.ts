@@ -9,7 +9,12 @@ export default defineConfig({
       ? [tsconfigPaths()]
       : [tailwindcss(), reactRouter(), tsconfigPaths()],
   test: {
-    exclude: ["**/node_modules/**", "**/dist/**", "**/.react-router/**"],
+    exclude: [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/.react-router/**",
+      "**/.sandcastle/**",
+    ],
     pool: "forks",
     poolOptions: {
       forks: {
