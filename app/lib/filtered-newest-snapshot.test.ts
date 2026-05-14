@@ -76,4 +76,25 @@ describe("filteredNewestSnapshot", () => {
     });
     expect(filteredNewestSnapshot([s])).toBe("s1");
   });
+
+  it("returns a non-preserved snapshot when it has both archived and non-archived clips", () => {
+    const s = snap("s1", {
+      clips: [{ archived: true }, { archived: false }],
+    });
+    expect(filteredNewestSnapshot([s])).toBe("s1");
+  });
+
+  it("returns null when all snapshots fail the filter", () => {
+    const s1 = snap("s1", {
+      preserved: false,
+      createdAt: new Date("2024-01-01"),
+      clips: [{ archived: true }],
+    });
+    const s2 = snap("s2", {
+      preserved: false,
+      createdAt: new Date("2024-02-01"),
+      clips: [],
+    });
+    expect(filteredNewestSnapshot([s1, s2])).toBeNull();
+  });
 });

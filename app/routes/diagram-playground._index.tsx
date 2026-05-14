@@ -17,10 +17,10 @@ export const meta: Route.MetaFunction = () => {
 export const loader = async () => {
   return Effect.gen(function* () {
     const db = yield* DBFunctionsService;
-    const [diagrams, allSnapshots] = yield* Effect.all([
-      db.listDiagrams(),
-      db.listAllSnapshotsWithClips(),
-    ]);
+    const [diagrams, allSnapshots] = yield* Effect.all(
+      [db.listDiagrams(), db.listAllSnapshotsWithClips()],
+      { concurrency: "unbounded" }
+    );
 
     const snapshotsByDiagram = new Map<
       string,
