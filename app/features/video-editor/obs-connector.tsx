@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useEffectReducer, type EffectReducer } from "use-effect-reducer";
 import {
   useSpeechDetector,
+  useWatchForSilenceDetected,
   useWatchForSpeechDetected,
 } from "./use-speech-detector";
 import type { PauseLength } from "@/silence-detection-constants";
@@ -363,6 +364,7 @@ export const useOBSConnector = (props: {
     profile: string;
     soundDetectionId: string;
   }) => void;
+  onClipAudioWindowClosed: () => void;
   pauseLength: PauseLength;
 }) => {
   const [websocket] = useState(() => new OBSWebSocket());
@@ -494,6 +496,15 @@ export const useOBSConnector = (props: {
           profile: state.profile,
           soundDetectionId,
         });
+      }
+    },
+  });
+
+  useWatchForSilenceDetected({
+    state: speechDetectorState,
+    onSilenceDetected: () => {
+      if (state.type === "obs-recording") {
+        props.onClipAudioWindowClosed();
       }
     },
   });

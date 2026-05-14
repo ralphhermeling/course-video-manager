@@ -215,3 +215,16 @@ export const useWatchForSpeechDetected = (opts: {
     prevState.current = opts.state;
   }, [opts.state, opts.onSpeechPartStarted]);
 };
+
+export const useWatchForSilenceDetected = (opts: {
+  state: FrontendSpeechDetectorState;
+  onSilenceDetected: () => void;
+}) => {
+  const prevState = useRef<FrontendSpeechDetectorState>(opts.state);
+  useEffect(() => {
+    if (prevState.current.type !== "silence" && opts.state.type === "silence") {
+      opts.onSilenceDetected();
+    }
+    prevState.current = opts.state;
+  }, [opts.state, opts.onSilenceDetected]);
+};

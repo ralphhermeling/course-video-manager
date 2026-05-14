@@ -1,53 +1,68 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import {
-  getDiagramFocusedDuringClip,
+  isDiagramFocused,
+  notifyDiagramBlur,
   notifyDiagramFocus,
-  startDiagramFocusTracking,
-  stopDiagramFocusTracking,
+  subscribeDiagramFocus,
 } from "./diagram-focus-tracking";
 
 beforeEach(() => {
-  stopDiagramFocusTracking();
+  notifyDiagramBlur();
 });
 
 describe("diagram focus tracking", () => {
-  it("ignores focus events that arrive before clip-start", () => {
-    notifyDiagramFocus();
-    startDiagramFocusTracking();
-    expect(getDiagramFocusedDuringClip()).toBe(false);
+  it("starts unfocused", () => {
+    expect(isDiagramFocused()).toBe(false);
   });
 
-  it("records focus events that arrive between start and read", () => {
-    startDiagramFocusTracking();
+  it("reflects focus and blur events live", () => {
     notifyDiagramFocus();
-    expect(getDiagramFocusedDuringClip()).toBe(true);
+    expect(isDiagramFocused()).toBe(true);
+
+    notifyDiagramBlur();
+    expect(isDiagramFocused()).toBe(false);
   });
 
-  it("does not leak focus from clip N to clip N+1", () => {
-    startDiagramFocusTracking();
-    notifyDiagramFocus();
-    expect(getDiagramFocusedDuringClip()).toBe(true);
+  it("notifies subscribers on focus change", () => {
+    const seen: boolean[] = [];
+    const unsub = subscribeDiagramFocus((focused) => {
+      seen.push(focused);
+    });
 
-    // clip N persists, next clip-start begins
-    startDiagramFocusTracking();
-    expect(getDiagramFocusedDuringClip()).toBe(false);
+    notifyDiagramFocus();
+    notifyDiagramBlur();
+    notifyDiagramFocus();
+
+    expect(seen).toEqual([true, false, true]);
+    unsub();
   });
 
-  it("ignores focus after tracking stops", () => {
-    startDiagramFocusTracking();
-    stopDiagramFocusTracking();
+  it("does not notify subscribers when state does not change", () => {
+    const seen: boolean[] = [];
+    const unsub = subscribeDiagramFocus((focused) => {
+      seen.push(focused);
+    });
+
     notifyDiagramFocus();
-    expect(getDiagramFocusedDuringClip()).toBe(false);
+    notifyDiagramFocus();
+    notifyDiagramBlur();
+    notifyDiagramBlur();
+
+    expect(seen).toEqual([true, false]);
+    unsub();
   });
 
-  it("requires an explicit start after stop — focus during the gap is dropped", () => {
-    startDiagramFocusTracking();
+  it("stops notifying after unsubscribe", () => {
+    const seen: boolean[] = [];
+    const unsub = subscribeDiagramFocus((focused) => {
+      seen.push(focused);
+    });
+
     notifyDiagramFocus();
-    stopDiagramFocusTracking();
-    // gap between sessions: any focus here must not contaminate the next session
+    unsub();
+    notifyDiagramBlur();
     notifyDiagramFocus();
-    notifyDiagramFocus();
-    startDiagramFocusTracking();
-    expect(getDiagramFocusedDuringClip()).toBe(false);
+
+    expect(seen).toEqual([true]);
   });
 });

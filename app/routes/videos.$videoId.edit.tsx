@@ -22,6 +22,8 @@ import { runtimeLive } from "@/services/layer.server";
 import { FileSystem } from "@effect/platform";
 import { Console, Effect } from "effect";
 import { useEffectReducer } from "use-effect-reducer";
+import { getActiveDiagramId } from "@/lib/diagram-window";
+import { isDiagramFocused } from "@/lib/diagram-focus-tracking";
 import type { Route } from "./+types/videos.$videoId.edit";
 import { data, useNavigate, useRevalidator } from "react-router";
 import { getStandaloneVideoFilePath } from "@/services/standalone-video-files";
@@ -327,6 +329,18 @@ export const ComponentInner = (props: Route.ComponentProps) => {
         scene,
         profile,
         soundDetectionId,
+      });
+    },
+    onClipAudioWindowClosed: () => {
+      const activeSession = clipStateRef.current.sessions.find(
+        (s) => s.status === "recording"
+      );
+      if (!activeSession) return;
+      dispatch({
+        type: "clip-audio-window-closed",
+        sessionId: activeSession.id,
+        activeDiagramId: getActiveDiagramId(),
+        diagramFocused: isDiagramFocused(),
       });
     },
     pauseLength,

@@ -95,8 +95,16 @@ export default function DiagramPlaygroundHome({
     function onFocus() {
       sendToParent({ type: "focus" });
     }
+    function onBlur() {
+      sendToParent({ type: "blur" });
+    }
     window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
+    window.addEventListener("blur", onBlur);
+    if (document.hasFocus()) sendToParent({ type: "focus" });
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("blur", onBlur);
+    };
   }, []);
 
   const handleCreateDiagram = async () => {

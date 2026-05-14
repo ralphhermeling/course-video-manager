@@ -3,7 +3,10 @@ import {
   subscribeParent,
   type ChildToParentMessage,
 } from "./diagram-protocol";
-import { notifyDiagramFocus } from "./diagram-focus-tracking";
+import {
+  notifyDiagramBlur,
+  notifyDiagramFocus,
+} from "./diagram-focus-tracking";
 
 const PLAYGROUND_PATH = "/diagram-playground";
 const WINDOW_NAME = "cvm-diagrams";
@@ -40,6 +43,8 @@ export function enableVideoEditorMode(): () => void {
       _activeDiagramId = msg.diagramId;
     } else if (msg.type === "focus") {
       notifyDiagramFocus();
+    } else if (msg.type === "blur") {
+      notifyDiagramBlur();
     }
   });
   // Announce ourselves immediately so the playground's indicator flips green
@@ -93,12 +98,6 @@ export function getActiveDiagramId(): string | null {
   if (!isPlaygroundAlive()) return null;
   return _activeDiagramId;
 }
-
-export {
-  getDiagramFocusedDuringClip,
-  startDiagramFocusTracking,
-  stopDiagramFocusTracking,
-} from "./diagram-focus-tracking";
 
 export function flushDiagramPlayground(): Promise<void> {
   if (!isPlaygroundAlive()) return Promise.resolve();

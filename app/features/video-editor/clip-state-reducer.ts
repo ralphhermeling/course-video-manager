@@ -24,6 +24,7 @@ import {
   handleNewOptimisticClipDetected,
 } from "./clip-state-reducer.helpers";
 import { handleAddEffectClipAt } from "./clip-state-reducer-effect-clip-helpers";
+import { handleClipAudioWindowClosed } from "./clip-state-reducer-snapshot-pinning.helpers";
 
 export namespace clipStateReducer {
   export type State = ClipReducerState;
@@ -718,6 +719,9 @@ export const clipStateReducer: EffectReducer<
           timestamp: Date.now(),
         },
       };
+    }
+    case "clip-audio-window-closed": {
+      return handleClipAudioWindowClosed(state, action);
     }
     case "update-clip-diagram-pin": {
       return {

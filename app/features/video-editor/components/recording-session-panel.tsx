@@ -8,10 +8,11 @@ import {
   Undo2Icon,
   PinIcon,
 } from "lucide-react";
+import { getActiveDiagramId } from "@/lib/diagram-window";
 import {
-  getActiveDiagramId,
-  getDiagramFocusedDuringClip,
-} from "@/lib/diagram-window";
+  isDiagramFocused,
+  subscribeDiagramFocus,
+} from "@/lib/diagram-focus-tracking";
 import { useContextSelector } from "use-context-selector";
 import { VideoEditorContext } from "../video-editor-context";
 import type { SessionPanelData } from "../video-editor-selectors";
@@ -165,26 +166,29 @@ export const SessionPanel = ({ panel }: { panel: SessionPanelData }) => {
   const [elapsedSeconds, setElapsedSeconds] = useState(() =>
     Math.floor((Date.now() - panel.startedAt) / 1000)
   );
-  const [willPinDiagram, setWillPinDiagram] = useState(false);
+  const [diagramFocused, setDiagramFocused] = useState(() =>
+    isDiagramFocused()
+  );
+  const [hasActiveDiagram, setHasActiveDiagram] = useState(
+    () => getActiveDiagramId() !== null
+  );
 
   useEffect(() => {
-    if (!panel.isRecording) {
-      setWillPinDiagram(false);
-      return;
-    }
+    if (!panel.isRecording) return;
 
     const tick = () => {
       setElapsedSeconds(Math.floor((Date.now() - panel.startedAt) / 1000));
-      setWillPinDiagram(
-        getActiveDiagramId() !== null && getDiagramFocusedDuringClip()
-      );
+      setHasActiveDiagram(getActiveDiagramId() !== null);
     };
-
     tick();
     const interval = setInterval(tick, 1000);
-
     return () => clearInterval(interval);
   }, [panel.isRecording, panel.startedAt]);
+
+  useEffect(() => {
+    setDiagramFocused(isDiagramFocused());
+    return subscribeDiagramFocus(setDiagramFocused);
+  }, []);
 
   const hasArchived = panel.archivedClips.length > 0;
 
@@ -207,13 +211,22 @@ export const SessionPanel = ({ panel }: { panel: SessionPanelData }) => {
             </span>
           </span>
         )}
-        {panel.isRecording && willPinDiagram && (
+        {panel.isRecording && hasActiveDiagram && (
           <span
-            className="ml-auto flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400"
-            title="A diagram snapshot will be pinned to the next clip"
+            className={cn(
+              "ml-auto flex items-center gap-1.5 text-xs",
+              diagramFocused
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-muted-foreground"
+            )}
+            title={
+              diagramFocused
+                ? "Diagram is focused — a snapshot will be pinned when this clip ends"
+                : "Diagram is not focused — focus it before the clip ends to pin a snapshot"
+            }
           >
             <PinIcon className="size-3" />
-            Diagram Detected
+            {diagramFocused ? "Diagram focused" : "Diagram not focused"}
           </span>
         )}
       </div>

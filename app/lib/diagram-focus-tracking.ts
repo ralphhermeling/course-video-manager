@@ -1,24 +1,32 @@
-// Buffers diagram-window `focus` events against the active Optimistic Clip's
-// lifetime: focus events only count between `startDiagramFocusTracking()` and
-// `stopDiagramFocusTracking()`. Reset between clips by calling start again.
+// Live observable for diagram-window focus state. The diagram playground
+// posts `focus` / `blur` messages and this module exposes them as a simple
+// boolean + subscribe API. Snapshot timing is decided elsewhere (the speech
+// detector locks in focus at the silence-detected transition).
 
-let isTracking = false;
 let focused = false;
+const listeners = new Set<(focused: boolean) => void>();
 
 export function notifyDiagramFocus(): void {
-  if (isTracking) focused = true;
+  if (focused) return;
+  focused = true;
+  for (const listener of listeners) listener(true);
 }
 
-export function startDiagramFocusTracking(): void {
-  isTracking = true;
+export function notifyDiagramBlur(): void {
+  if (!focused) return;
   focused = false;
+  for (const listener of listeners) listener(false);
 }
 
-export function stopDiagramFocusTracking(): void {
-  isTracking = false;
-  focused = false;
-}
-
-export function getDiagramFocusedDuringClip(): boolean {
+export function isDiagramFocused(): boolean {
   return focused;
+}
+
+export function subscribeDiagramFocus(
+  listener: (focused: boolean) => void
+): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }

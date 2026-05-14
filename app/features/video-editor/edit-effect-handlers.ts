@@ -12,13 +12,6 @@ import {
 import type { ClipService } from "@/services/clip-service";
 import type { EffectsMap } from "use-effect-reducer";
 import type React from "react";
-import { shouldSnapshot } from "@/lib/snapshot-rule";
-import {
-  getActiveDiagramId,
-  getDiagramFocusedDuringClip,
-  startDiagramFocusTracking,
-  stopDiagramFocusTracking,
-} from "@/lib/diagram-window";
 import { sendToChild, subscribeParent } from "@/lib/diagram-protocol";
 
 export interface EditEffectHandlersDeps {
@@ -235,8 +228,6 @@ export function createEditEffectHandlers(
     "start-session-polling": (_state, effect, dispatch) => {
       let unmounted = false;
 
-      startDiagramFocusTracking();
-
       // The Diagram Playground actually creates auto-pin snapshots — it has
       // the tldraw editor and can render a thumbnail. We just tell it which
       // clip to pin and, on the ack, push the new pin into reducer state so
@@ -281,44 +272,25 @@ export function createEditEffectHandlers(
                 clips: clips as DB.Clip[],
                 outputPath: effect.outputPath,
               });
-
-              const activeDiagramId = getActiveDiagramId();
-              const diagramFocusedDuringClip = getDiagramFocusedDuringClip();
-
-              // Re-arm the focus buffer for the next clip's window before any
-              // awaits below, so focus events that arrive while we're flushing
-              // the diagram window are attributed to the next clip, not this
-              // one.
-              startDiagramFocusTracking();
-
-              const shouldPin = shouldSnapshot({
-                activeDiagramId,
-                diagramFocusedDuringClip,
-              });
-
-              if (shouldPin && activeDiagramId) {
-                for (const clip of clips as DB.Clip[]) {
-                  sendToChild({
-                    type: "snapshotForClip",
-                    diagramId: activeDiagramId,
-                    clipId: clip.id,
-                  });
-                }
-              }
             }
           } catch (e) {
             // Errors are swallowed; polling continues
           }
           await new Promise((resolve) => setTimeout(resolve, 500));
         }
-        stopDiagramFocusTracking();
       })();
 
       return () => {
         unmounted = true;
-        stopDiagramFocusTracking();
         unsubAck();
       };
+    },
+    "snapshot-for-clip": (_state, effect) => {
+      sendToChild({
+        type: "snapshotForClip",
+        diagramId: effect.diagramId,
+        clipId: effect.clipId,
+      });
     },
     "create-clip-section-at": (_state, effect, dispatch) => {
       clipService

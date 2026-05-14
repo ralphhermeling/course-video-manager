@@ -82,6 +82,17 @@ export type ClipOptimisticallyAdded = {
    * will arrive. Set by the session-polling-complete action after the session timeout fires.
    */
   isOrphaned?: boolean;
+  /**
+   * Diagram state captured when the clip's audio window closed (silence
+   * detected). Decided once, at the moment the clip ends — not at DB pairing
+   * time — so focus that drifts away during polling lag does not invalidate
+   * the snapshot decision. Read when the optimistic clip is paired with a
+   * database clip to decide whether to auto-pin a diagram snapshot.
+   */
+  pendingSnapshot?: {
+    activeDiagramId: string | null;
+    diagramFocused: boolean;
+  };
 };
 
 export const createFrontendId = (): FrontendId => {
@@ -290,6 +301,12 @@ export type ClipReducerAction =
       clipId: FrontendId;
       diagramSnapshotId: string | null;
       diagramName: string | null;
+    }
+  | {
+      type: "clip-audio-window-closed";
+      sessionId: SessionId;
+      activeDiagramId: string | null;
+      diagramFocused: boolean;
     };
 
 export type ClipReducerEffect =
@@ -379,6 +396,11 @@ export type ClipReducerEffect =
     }
   | {
       type: "revalidate-loader";
+    }
+  | {
+      type: "snapshot-for-clip";
+      diagramId: string;
+      clipId: DatabaseId;
     };
 
 export type ClipReducerExec = (effect: ClipReducerEffect) => void;

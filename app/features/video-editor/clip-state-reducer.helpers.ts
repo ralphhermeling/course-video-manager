@@ -15,6 +15,11 @@ import type {
 } from "./clip-state-reducer.types";
 import { createFrontendId, createSessionId } from "./clip-state-reducer.types";
 import { DEFAULT_PAUSE_LENGTH } from "@/silence-detection-constants";
+import {
+  collectSnapshotForClip,
+  emitSnapshotForClipEffects,
+  type PendingSnapshotEffect,
+} from "./clip-state-reducer-snapshot-pinning.helpers";
 
 export const handleNewOptimisticClipDetected = (
   state: ClipReducerState,
@@ -201,6 +206,7 @@ export const handleNewDatabaseClips = (
   const clipsToArchive = new Set<DatabaseId>();
   const databaseClipIdsToTranscribe = new Set<DatabaseId>();
   const frontendClipIdsToTranscribe = new Set<FrontendId>();
+  const snapshotsToCreate: PendingSnapshotEffect[] = [];
   const clipsToUpdateScene = new Map<
     DatabaseId,
     { scene: string; profile: string; beatType: BeatType }
@@ -237,12 +243,15 @@ export const handleNewDatabaseClips = (
         c.insertionOrder === firstOfSortedClips?.insertionOrder
     );
 
-    // If there is a first optimistically added clip, we need to pair it with the database clip
     if (firstOfSortedClips) {
       const frontendClip = newClipsState[index];
-      // If the optimistically added clip should be archived, convert to ClipOnDatabase
-      // with shouldArchive: true — still pair, transcribe, and archive in DB, but keep
-      // in state so it appears in the session panel's archived sub-section
+
+      const pendingSnapshot = collectSnapshotForClip(
+        frontendClip,
+        databaseClip.id
+      );
+      if (pendingSnapshot) snapshotsToCreate.push(pendingSnapshot);
+
       if (
         frontendClip?.type === "optimistically-added" &&
         frontendClip?.shouldArchive
@@ -346,6 +355,8 @@ export const handleNewDatabaseClips = (
       clipIds: Array.from(databaseClipIdsToTranscribe),
     });
   }
+
+  emitSnapshotForClipEffects(snapshotsToCreate, exec);
 
   return {
     ...state,

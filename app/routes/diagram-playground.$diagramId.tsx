@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   Link2,
+  Pin,
   Plus,
   Save,
   Trash2,
@@ -67,6 +68,9 @@ export default function DiagramPlaygroundActive({
   const [refreshKey, setRefreshKey] = useState(0);
   const [pendingRestore, setPendingRestore] = useState<Snapshot | null>(null);
   const [editorConnected, setEditorConnected] = useState(false);
+  const [windowFocused, setWindowFocused] = useState(() =>
+    typeof document !== "undefined" ? document.hasFocus() : false
+  );
   const [creating, setCreating] = useState(false);
   const initialLoadDone = useRef(false);
 
@@ -153,7 +157,9 @@ export default function DiagramPlaygroundActive({
 
   const handleRestoreRequest = useCallback(
     (snapshot: Snapshot, headIsPreserved: boolean) => {
-      if (headIsPreserved) {
+      const ed = editorRef.current;
+      const canvasIsEmpty = ed ? ed.getCurrentPageShapeIds().size === 0 : false;
+      if (headIsPreserved || canvasIsEmpty) {
         performRestore(snapshot);
       } else {
         setPendingRestore(snapshot);
@@ -339,10 +345,23 @@ export default function DiagramPlaygroundActive({
 
   useEffect(() => {
     function onFocus() {
+      setWindowFocused(true);
       sendToParent({ type: "focus" });
     }
+    function onBlur() {
+      setWindowFocused(false);
+      sendToParent({ type: "blur" });
+    }
     window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
+    window.addEventListener("blur", onBlur);
+    if (document.hasFocus()) {
+      setWindowFocused(true);
+      sendToParent({ type: "focus" });
+    }
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("blur", onBlur);
+    };
   }, []);
 
   const handleMount = useCallback(
@@ -460,81 +479,6 @@ export default function DiagramPlaygroundActive({
 
   return (
     <div className="flex h-screen w-screen">
-      {!isFocusMode && (
-        <div className="flex w-56 shrink-0 flex-col border-r border-zinc-700 bg-zinc-900">
-          <div className="flex items-stretch border-b border-zinc-700">
-            <button
-              onClick={handleNavigateHome}
-              className="flex flex-1 items-center gap-1.5 px-3 py-2 text-xs font-semibold text-zinc-200 hover:bg-zinc-800"
-            >
-              <ArrowLeft className="h-3 w-3" />
-              All Diagrams
-            </button>
-            <button
-              onClick={handleCreateDiagram}
-              disabled={creating}
-              title="New diagram"
-              aria-label="New diagram"
-              className="flex items-center justify-center border-l border-zinc-700 px-2 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 disabled:opacity-50"
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-2">
-            <div className="flex flex-col gap-1">
-              {diagrams.map((d) => {
-                const isActive = d.id === diagramId;
-                return (
-                  <ContextMenu key={d.id}>
-                    <ContextMenuTrigger asChild>
-                      <div
-                        className={
-                          "flex items-center gap-2 overflow-hidden rounded border border-zinc-700 " +
-                          (isActive
-                            ? "bg-zinc-700/60"
-                            : "bg-zinc-800 hover:bg-zinc-700/40")
-                        }
-                      >
-                        <Link
-                          to={`/diagram-playground/${d.id}`}
-                          className="h-10 w-14 shrink-0 bg-zinc-900"
-                          aria-label={`Open ${d.name}`}
-                        >
-                          <DiagramThumbnail
-                            diagramId={d.id}
-                            contentHash={d.thumbnailContentHash ?? undefined}
-                            className="h-full w-full object-contain"
-                          />
-                        </Link>
-                        <div className="min-w-0 flex-1 pr-2">
-                          <EditableDiagramName
-                            diagramId={d.id}
-                            name={d.name}
-                            className={
-                              "block w-full truncate text-sm " +
-                              (isActive ? "text-zinc-100" : "text-zinc-300")
-                            }
-                            inputClassName="w-full rounded bg-zinc-900 px-1 text-sm text-zinc-100 outline-none ring-1 ring-zinc-500"
-                          />
-                        </div>
-                      </div>
-                    </ContextMenuTrigger>
-                    <ContextMenuContent>
-                      <ContextMenuItem
-                        variant="destructive"
-                        onSelect={() => handleDeleteDiagram(d.id)}
-                      >
-                        <Trash2 />
-                        Delete
-                      </ContextMenuItem>
-                    </ContextMenuContent>
-                  </ContextMenu>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
       <div className="relative flex-1">
         <Tldraw
           onMount={handleMount}
@@ -554,46 +498,141 @@ export default function DiagramPlaygroundActive({
             <Save className="h-4 w-4" />
           </button>
         )}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div
-              aria-label={
-                editorConnected
-                  ? "Connected to video editor"
-                  : "Not connected to a video editor"
-              }
-              className={
-                "absolute bottom-28 right-2 z-50 flex h-9 w-9 items-center justify-center rounded-full shadow " +
-                (editorConnected
-                  ? "bg-zinc-700/80 text-zinc-300"
-                  : "bg-amber-900/80 text-amber-300")
-              }
-            >
-              {editorConnected ? (
-                <Link2 className="h-4 w-4" />
-              ) : (
-                <AlertTriangle className="h-4 w-4" />
-              )}
-            </div>
-          </TooltipTrigger>
-          <TooltipContent side="left">
-            {editorConnected
-              ? "Connected to video editor"
-              : "Not connected to video editor"}
-          </TooltipContent>
-        </Tooltip>
+        {(() => {
+          const status: "disconnected" | "connected" | "pinning" =
+            !editorConnected
+              ? "disconnected"
+              : windowFocused
+                ? "pinning"
+                : "connected";
+          const label =
+            status === "disconnected"
+              ? "Not connected to a video editor"
+              : status === "pinning"
+                ? "Diagram focused — snapshots will pin to clips ending now"
+                : "Connected to video editor — focus this window to pin snapshots";
+          const Icon =
+            status === "disconnected"
+              ? AlertTriangle
+              : status === "pinning"
+                ? Pin
+                : Link2;
+          const palette =
+            status === "disconnected"
+              ? "bg-amber-900/80 text-amber-300"
+              : status === "pinning"
+                ? "bg-emerald-700/80 text-emerald-100"
+                : "bg-zinc-700/80 text-zinc-300";
+          return (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div
+                  aria-label={label}
+                  className={
+                    "absolute bottom-28 right-2 z-50 flex h-9 w-9 items-center justify-center rounded-full shadow " +
+                    palette
+                  }
+                >
+                  <Icon className="h-4 w-4" />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="left">{label}</TooltipContent>
+            </Tooltip>
+          );
+        })()}
       </div>
-      {timelineVisible && (
+      {!isFocusMode && (
         <div className="flex w-64 shrink-0 flex-col border-l border-zinc-700 bg-zinc-900">
-          <div className="border-b border-zinc-700 px-3 py-2 text-xs font-semibold text-zinc-300">
-            Snapshot Timeline
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            <TimelinePanel
-              diagramId={diagramId}
-              onRestoreRequest={handleRestoreRequest}
-              refreshKey={refreshKey}
-            />
+          {timelineVisible && (
+            <div className="flex h-1/2 min-h-0 flex-col border-b border-zinc-700">
+              <div className="border-b border-zinc-700 px-3 py-2 text-xs font-semibold text-zinc-300">
+                Snapshot Timeline
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                <TimelinePanel
+                  diagramId={diagramId}
+                  onRestoreRequest={handleRestoreRequest}
+                  refreshKey={refreshKey}
+                />
+              </div>
+            </div>
+          )}
+          <div
+            className={
+              "flex min-h-0 flex-col " + (timelineVisible ? "h-1/2" : "flex-1")
+            }
+          >
+            <div className="flex items-stretch border-b border-zinc-700">
+              <button
+                onClick={handleNavigateHome}
+                className="flex flex-1 items-center gap-1.5 px-3 py-2 text-xs font-semibold text-zinc-200 hover:bg-zinc-800"
+              >
+                <ArrowLeft className="h-3 w-3" />
+                All Diagrams
+              </button>
+              <button
+                onClick={handleCreateDiagram}
+                disabled={creating}
+                title="New diagram"
+                aria-label="New diagram"
+                className="flex items-center justify-center border-l border-zinc-700 px-2 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 disabled:opacity-50"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2">
+              <div className="flex flex-col gap-1">
+                {diagrams.map((d) => {
+                  const isActive = d.id === diagramId;
+                  return (
+                    <ContextMenu key={d.id}>
+                      <ContextMenuTrigger asChild>
+                        <div
+                          className={
+                            "flex items-center gap-2 overflow-hidden rounded border border-zinc-700 " +
+                            (isActive
+                              ? "bg-zinc-700/60"
+                              : "bg-zinc-800 hover:bg-zinc-700/40")
+                          }
+                        >
+                          <Link
+                            to={`/diagram-playground/${d.id}`}
+                            className="h-10 w-14 shrink-0 bg-zinc-900"
+                            aria-label={`Open ${d.name}`}
+                          >
+                            <DiagramThumbnail
+                              diagramId={d.id}
+                              contentHash={d.thumbnailContentHash ?? undefined}
+                              className="h-full w-full object-contain"
+                            />
+                          </Link>
+                          <div className="min-w-0 flex-1 pr-2">
+                            <EditableDiagramName
+                              diagramId={d.id}
+                              name={d.name}
+                              className={
+                                "block w-full truncate text-sm " +
+                                (isActive ? "text-zinc-100" : "text-zinc-300")
+                              }
+                              inputClassName="w-full rounded bg-zinc-900 px-1 text-sm text-zinc-100 outline-none ring-1 ring-zinc-500"
+                            />
+                          </div>
+                        </div>
+                      </ContextMenuTrigger>
+                      <ContextMenuContent>
+                        <ContextMenuItem
+                          variant="destructive"
+                          onSelect={() => handleDeleteDiagram(d.id)}
+                        >
+                          <Trash2 />
+                          Delete
+                        </ContextMenuItem>
+                      </ContextMenuContent>
+                    </ContextMenu>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
       )}
