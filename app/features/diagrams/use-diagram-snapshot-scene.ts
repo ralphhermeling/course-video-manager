@@ -1,10 +1,18 @@
 import { useEffect, useState } from "react";
 
-const sceneCache = new Map<string, unknown>();
-const inflight = new Map<string, Promise<unknown>>();
+type SnapshotMeta = {
+  scene: unknown;
+  diagramId: string | null;
+  contentHash: string | null;
+};
 
-const fetchScene = (snapshotId: string): Promise<unknown> => {
-  const cached = sceneCache.get(snapshotId);
+const EMPTY: SnapshotMeta = { scene: null, diagramId: null, contentHash: null };
+
+const metaCache = new Map<string, SnapshotMeta>();
+const inflight = new Map<string, Promise<SnapshotMeta>>();
+
+const fetchMeta = (snapshotId: string): Promise<SnapshotMeta> => {
+  const cached = metaCache.get(snapshotId);
   if (cached !== undefined) return Promise.resolve(cached);
 
   const existing = inflight.get(snapshotId);
@@ -12,12 +20,26 @@ const fetchScene = (snapshotId: string): Promise<unknown> => {
 
   const promise = fetch(`/api/diagram-snapshots/${snapshotId}`)
     .then((res) => (res.ok ? res.json() : null))
-    .then((data: { scene: unknown } | null) => {
-      const scene = data?.scene ?? null;
-      sceneCache.set(snapshotId, scene);
-      return scene;
-    })
-    .catch(() => null)
+    .then(
+      (
+        data: {
+          scene: unknown;
+          diagramId: string;
+          contentHash: string;
+        } | null
+      ) => {
+        const meta: SnapshotMeta = data
+          ? {
+              scene: data.scene ?? null,
+              diagramId: data.diagramId,
+              contentHash: data.contentHash,
+            }
+          : EMPTY;
+        metaCache.set(snapshotId, meta);
+        return meta;
+      }
+    )
+    .catch(() => EMPTY)
     .finally(() => {
       inflight.delete(snapshotId);
     });
@@ -26,24 +48,28 @@ const fetchScene = (snapshotId: string): Promise<unknown> => {
   return promise;
 };
 
-export const useDiagramSnapshotScene = (snapshotId: string | null) => {
-  const [scene, setScene] = useState<unknown>(() =>
-    snapshotId ? (sceneCache.get(snapshotId) ?? null) : null
+export const useDiagramSnapshotMeta = (snapshotId: string | null) => {
+  const [meta, setMeta] = useState<SnapshotMeta>(() =>
+    snapshotId ? (metaCache.get(snapshotId) ?? EMPTY) : EMPTY
   );
 
   useEffect(() => {
     if (!snapshotId) {
-      setScene(null);
+      setMeta(EMPTY);
       return;
     }
     let cancelled = false;
-    fetchScene(snapshotId).then((s) => {
-      if (!cancelled) setScene(s);
+    fetchMeta(snapshotId).then((m) => {
+      if (!cancelled) setMeta(m);
     });
     return () => {
       cancelled = true;
     };
   }, [snapshotId]);
 
-  return scene;
+  return meta;
+};
+
+export const useDiagramSnapshotScene = (snapshotId: string | null) => {
+  return useDiagramSnapshotMeta(snapshotId).scene;
 };

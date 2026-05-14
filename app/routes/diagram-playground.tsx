@@ -1,17 +1,28 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { Tldraw, getSnapshot, loadSnapshot, type Editor } from "tldraw";
 import "tldraw/tldraw.css";
+import { Archive, Save } from "lucide-react";
 import { toast } from "sonner";
 import {
   subscribeChild,
   sendToParent,
   type ParentToChildMessage,
 } from "@/lib/diagram-protocol";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { DiagramThumbnail } from "@/features/diagrams/diagram-thumbnail";
 
 const DEBOUNCE_MS = 500;
+
+const EMPTY_MIME_TYPES: string[] = [];
+const EMPTY_EMBEDS: never[] = [];
 
 interface Snapshot {
   id: string;
@@ -22,64 +33,81 @@ interface Snapshot {
   createdAt: string;
 }
 
+interface SnapshotListResponse {
+  snapshots: Snapshot[];
+  headContentHash: string | null;
+}
+
 function TimelinePanel({
   diagramId,
-  onRestore,
+  onRestoreRequest,
   refreshKey,
 }: {
   diagramId: string;
-  onRestore: (scene: unknown) => void;
+  onRestoreRequest: (snapshot: Snapshot, headIsPreserved: boolean) => void;
   refreshKey: number;
 }) {
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [headContentHash, setHeadContentHash] = useState<string | null>(null);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [archivingId, setArchivingId] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchSnapshots = useCallback(() => {
     let cancelled = false;
-    setLoading(true);
 
     fetch(`/api/diagrams/${diagramId}/snapshots/list`)
-      .then((res) => (res.ok ? res.json() : null))
+      .then((res) =>
+        res.ok ? (res.json() as Promise<SnapshotListResponse>) : null
+      )
       .then((data) => {
         if (cancelled || !data) return;
-        setSnapshots(data.snapshots as Snapshot[]);
+        setSnapshots(data.snapshots);
+        setHeadContentHash(data.headContentHash);
       })
       .catch(() => {})
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setHasLoadedOnce(true);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [diagramId, refreshKey]);
+  }, [diagramId]);
 
-  const handleRestore = async (snapshot: Snapshot) => {
-    setRestoringId(snapshot.id);
+  useEffect(() => {
+    return fetchSnapshots();
+  }, [fetchSnapshots, refreshKey]);
+
+  const headIsPreserved =
+    headContentHash != null &&
+    snapshots.some((s) => s.preserved && s.contentHash === headContentHash);
+
+  const handleRestoreClick = (snapshot: Snapshot) => {
+    onRestoreRequest(snapshot, headIsPreserved);
+  };
+
+  const handleArchive = async (snapshot: Snapshot) => {
+    setArchivingId(snapshot.id);
     try {
-      const res = await fetch(`/api/diagrams/${diagramId}/restore-to-head`, {
+      const res = await fetch(`/api/diagram-snapshots/${snapshot.id}/archive`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ snapshotId: snapshot.id }),
+        body: JSON.stringify({ archived: true }),
       });
-
       if (!res.ok) {
-        toast.error("Failed to restore snapshot");
+        toast.error("Failed to archive snapshot");
         return;
       }
-
-      onRestore(snapshot.scene);
-      toast.success("Restored to head");
+      setSnapshots((prev) => prev.filter((s) => s.id !== snapshot.id));
     } catch {
-      toast.error("Failed to restore snapshot");
+      toast.error("Failed to archive snapshot");
     } finally {
-      setRestoringId(null);
+      setArchivingId(null);
     }
   };
 
-  if (loading) {
-    return <div className="p-3 text-xs text-zinc-400">Loading snapshots…</div>;
+  if (!hasLoadedOnce) {
+    return <div className="p-3" />;
   }
 
   if (snapshots.length === 0) {
@@ -89,36 +117,48 @@ function TimelinePanel({
   return (
     <div className="flex flex-col gap-1 p-2">
       {snapshots.map((snapshot) => (
-        <div
+        <button
           key={snapshot.id}
-          className="flex items-center gap-2 rounded border border-zinc-700 bg-zinc-800 px-2 py-1.5"
+          type="button"
+          onClick={() => handleRestoreClick(snapshot)}
+          title="Restore snapshot"
+          className="group flex h-14 items-center gap-2 overflow-hidden rounded border border-zinc-700 bg-zinc-800 pr-2 text-left hover:bg-zinc-700/60 focus:outline-none focus-visible:ring-1 focus-visible:ring-zinc-400"
         >
           <DiagramThumbnail
+            diagramId={snapshot.diagramId}
+            contentHash={snapshot.contentHash}
             scene={snapshot.scene}
-            className="h-8 w-10 shrink-0 overflow-hidden rounded bg-zinc-700"
+            className="h-full w-20 shrink-0 object-contain bg-zinc-900"
           />
-          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <div className="flex items-center gap-1.5">
-              {snapshot.preserved && (
-                <Badge variant="secondary" className="text-[10px] px-1 py-0">
-                  Preserved
-                </Badge>
-              )}
-              <span className="text-[10px] text-zinc-400 truncate">
-                {new Date(snapshot.createdAt).toLocaleString()}
-              </span>
-            </div>
-          </div>
+          <div className="min-w-0 flex-1" />
           <Button
+            asChild
             variant="ghost"
-            size="sm"
-            className="h-6 px-2 text-[10px] text-zinc-300 hover:text-zinc-100"
-            disabled={restoringId === snapshot.id}
-            onClick={() => handleRestore(snapshot)}
+            size="icon"
+            title="Archive"
+            aria-label="Archive snapshot"
+            className="h-7 w-7 text-zinc-300 hover:text-zinc-100"
+            disabled={archivingId === snapshot.id}
           >
-            {restoringId === snapshot.id ? "Restoring…" : "Restore"}
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (archivingId !== snapshot.id) handleArchive(snapshot);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (archivingId !== snapshot.id) handleArchive(snapshot);
+                }
+              }}
+            >
+              <Archive className="h-3.5 w-3.5" />
+            </span>
           </Button>
-        </div>
+        </button>
       ))}
     </div>
   );
@@ -133,8 +173,9 @@ export default function DiagramPlayground() {
     string | null
   >(null);
   const [preserving, setPreserving] = useState(false);
-  const [timelineOpen, setTimelineOpen] = useState(true);
+  const [isFocusMode, setIsFocusMode] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [pendingRestore, setPendingRestore] = useState<Snapshot | null>(null);
 
   const saveHead = useCallback(async () => {
     const ed = editorRef.current;
@@ -190,21 +231,49 @@ export default function DiagramPlayground() {
     [saveHead]
   );
 
-  const handleRestore = useCallback((scene: unknown) => {
+  const performRestore = useCallback(async (snapshot: Snapshot) => {
     const ed = editorRef.current;
-    if (!ed || !scene) return;
+    const id = activeDiagramId.current;
+    if (!ed || !id) return;
 
-    if (saveTimer.current) {
-      clearTimeout(saveTimer.current);
-      saveTimer.current = null;
+    try {
+      const res = await fetch(`/api/diagrams/${id}/restore-to-head`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ snapshotId: snapshot.id }),
+      });
+
+      if (!res.ok) {
+        toast.error("Failed to restore snapshot");
+        return;
+      }
+
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+      }
+      loadSnapshot(ed.store, { document: snapshot.scene as never });
+      setRefreshKey((k) => k + 1);
+    } catch {
+      toast.error("Failed to restore snapshot");
     }
-
-    loadSnapshot(ed.store, { document: scene as any });
   }, []);
+
+  const handleRestoreRequest = useCallback(
+    (snapshot: Snapshot, headIsPreserved: boolean) => {
+      if (headIsPreserved) {
+        performRestore(snapshot);
+      } else {
+        setPendingRestore(snapshot);
+      }
+    },
+    [performRestore]
+  );
 
   const preserveSnapshot = useCallback(async () => {
     const id = activeDiagramId.current;
-    if (!id) return;
+    const ed = editorRef.current;
+    if (!id || !ed) return;
 
     setPreserving(true);
     try {
@@ -214,10 +283,36 @@ export default function DiagramPlayground() {
       }
       await saveHead();
 
+      const shapeIds = Array.from(ed.getCurrentPageShapeIds());
+      if (shapeIds.length === 0) {
+        toast.error("Cannot preserve an empty diagram");
+        return;
+      }
+
+      let thumbnailPngBase64: string;
+      try {
+        const { blob } = await ed.toImage(shapeIds, {
+          format: "png",
+          background: false,
+          darkMode: true,
+          padding: 32,
+        });
+        const buffer = await blob.arrayBuffer();
+        let binary = "";
+        const bytes = new Uint8Array(buffer);
+        for (let i = 0; i < bytes.byteLength; i++) {
+          binary += String.fromCharCode(bytes[i]!);
+        }
+        thumbnailPngBase64 = btoa(binary);
+      } catch {
+        toast.error("Failed to render thumbnail");
+        return;
+      }
+
       const res = await fetch(`/api/diagrams/${id}/snapshots`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ preserved: true }),
+        body: JSON.stringify({ preserved: true, thumbnailPngBase64 }),
       });
       if (!res.ok) {
         toast.error("Failed to preserve snapshot");
@@ -225,7 +320,6 @@ export default function DiagramPlayground() {
       }
       const data = await res.json();
       if (data.snapshot) {
-        toast.success("Preserved Snapshot saved");
         setRefreshKey((k) => k + 1);
       }
     } catch {
@@ -283,6 +377,7 @@ export default function DiagramPlayground() {
     (editor: Editor) => {
       editorRef.current = editor;
       setMounted(true);
+      setIsFocusMode(editor.getInstanceState().isFocusMode);
 
       editor.sideEffects.registerBeforeCreateHandler("shape", (shape) => {
         if (
@@ -293,7 +388,7 @@ export default function DiagramPlayground() {
           toast.warning(
             "Images, videos, and embeds are not supported in v1. Only vector shapes and text are allowed."
           );
-          return undefined as any;
+          return undefined as never;
         }
         return shape;
       });
@@ -306,9 +401,18 @@ export default function DiagramPlayground() {
         },
         { source: "user", scope: "document" }
       );
+
+      editor.store.listen(
+        () => {
+          setIsFocusMode(editor.getInstanceState().isFocusMode);
+        },
+        { scope: "session" }
+      );
     },
     [scheduleSave]
   );
+
+  const timelineVisible = activeDiagramIdState && !isFocusMode;
 
   return (
     <div className="flex h-screen w-screen">
@@ -316,29 +420,23 @@ export default function DiagramPlayground() {
         <Tldraw
           onMount={handleMount}
           colorScheme="dark"
-          acceptedImageMimeTypes={[]}
-          acceptedVideoMimeTypes={[]}
-          embeds={[]}
+          acceptedImageMimeTypes={EMPTY_MIME_TYPES}
+          acceptedVideoMimeTypes={EMPTY_MIME_TYPES}
+          embeds={EMPTY_EMBEDS}
         />
         {activeDiagramIdState && (
-          <div className="absolute top-2 right-2 z-50 flex gap-1.5">
-            <button
-              onClick={() => setTimelineOpen((o) => !o)}
-              className="rounded bg-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-100 hover:bg-zinc-600"
-            >
-              {timelineOpen ? "Hide Timeline" : "Show Timeline"}
-            </button>
-            <button
-              onClick={preserveSnapshot}
-              disabled={preserving}
-              className="rounded bg-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-100 hover:bg-zinc-600 disabled:opacity-50"
-            >
-              {preserving ? "Preserving…" : "Preserve Snapshot"}
-            </button>
-          </div>
+          <button
+            onClick={preserveSnapshot}
+            disabled={preserving}
+            title="Preserve Snapshot"
+            aria-label="Preserve Snapshot"
+            className="absolute bottom-16 right-2 z-50 flex h-9 w-9 items-center justify-center rounded bg-zinc-700 text-zinc-100 shadow hover:bg-zinc-600 disabled:opacity-50"
+          >
+            <Save className="h-4 w-4" />
+          </button>
         )}
       </div>
-      {activeDiagramIdState && timelineOpen && (
+      {timelineVisible && (
         <div className="flex w-64 shrink-0 flex-col border-l border-zinc-700 bg-zinc-900">
           <div className="border-b border-zinc-700 px-3 py-2 text-xs font-semibold text-zinc-300">
             Snapshot Timeline
@@ -346,12 +444,42 @@ export default function DiagramPlayground() {
           <div className="flex-1 overflow-y-auto">
             <TimelinePanel
               diagramId={activeDiagramIdState}
-              onRestore={handleRestore}
+              onRestoreRequest={handleRestoreRequest}
               refreshKey={refreshKey}
             />
           </div>
         </div>
       )}
+      <Dialog
+        open={pendingRestore !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingRestore(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Restore snapshot?</DialogTitle>
+            <DialogDescription>
+              The current canvas has not been saved as a preserved snapshot.
+              Restoring will replace it and you won't be able to recover it.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setPendingRestore(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                const snap = pendingRestore;
+                setPendingRestore(null);
+                if (snap) performRestore(snap);
+              }}
+            >
+              Restore
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

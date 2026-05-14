@@ -34,7 +34,7 @@ import {
   getIsClipPortrait,
 } from "../video-editor-selectors";
 import { DiagramThumbnail } from "@/features/diagrams/diagram-thumbnail";
-import { useDiagramSnapshotScene } from "@/features/diagrams/use-diagram-snapshot-scene";
+import { useDiagramSnapshotMeta } from "@/features/diagrams/use-diagram-snapshot-scene";
 
 /**
  * Props for the ClipItem component
@@ -394,12 +394,16 @@ const DiagramPinIndicator = (props: {
   diagramName: string | null;
   onUnpin: () => void;
 }) => {
-  const scene = useDiagramSnapshotScene(props.snapshotId);
+  const { scene, diagramId, contentHash } = useDiagramSnapshotMeta(
+    props.snapshotId
+  );
 
   return (
     <div className="z-10 relative flex items-center gap-1.5 mt-1">
-      {scene ? (
+      {scene || (diagramId && contentHash) ? (
         <DiagramThumbnail
+          diagramId={diagramId ?? undefined}
+          contentHash={contentHash ?? undefined}
           scene={scene}
           className="h-6 w-9 shrink-0 overflow-hidden rounded border bg-muted"
         />

@@ -7,6 +7,7 @@ import {
 import { and, asc, desc, eq, ilike, max, sql, type SQL } from "drizzle-orm";
 import { Effect } from "effect";
 import { hashScene } from "@/lib/scene-hash";
+import { writeThumbnail } from "@/services/diagram-thumbnail-store.server";
 
 const makeDbCall = <T>(fn: () => Promise<T>) => {
   return Effect.tryPromise({
@@ -157,7 +158,7 @@ export const createDiagramOperations = (db: DrizzleDB) => {
 
   const createSnapshot = Effect.fn("createSnapshot")(function* (
     diagramId: string,
-    opts: { preserved?: boolean }
+    opts: { preserved?: boolean; thumbnailPng?: Buffer }
   ) {
     const diagram = yield* makeDbCall(() =>
       db.query.diagrams.findFirst({
@@ -181,6 +182,14 @@ export const createDiagramOperations = (db: DrizzleDB) => {
 
     const contentHash = hashScene(diagram.headScene);
     const preserved = opts.preserved ?? false;
+
+    // Write thumbnail before DB so a preserved row never references a missing file.
+    if (preserved && opts.thumbnailPng) {
+      yield* Effect.try({
+        try: () => writeThumbnail(diagramId, contentHash, opts.thumbnailPng!),
+        catch: (e) => new UnknownDBServiceError({ cause: e }),
+      });
+    }
 
     const existing = yield* makeDbCall(() =>
       db.query.diagramSnapshots.findFirst({
@@ -260,7 +269,10 @@ export const createDiagramOperations = (db: DrizzleDB) => {
   ) {
     return yield* makeDbCall(() =>
       db.query.diagramSnapshots.findMany({
-        where: eq(diagramSnapshots.diagramId, diagramId),
+        where: and(
+          eq(diagramSnapshots.diagramId, diagramId),
+          eq(diagramSnapshots.archived, false)
+        ),
         orderBy: [asc(diagramSnapshots.createdAt)],
         with: {
           clips: {
@@ -269,6 +281,28 @@ export const createDiagramOperations = (db: DrizzleDB) => {
         },
       })
     );
+  });
+
+  const setSnapshotArchived = Effect.fn("setSnapshotArchived")(function* (
+    snapshotId: string,
+    archived: boolean
+  ) {
+    const results = yield* makeDbCall(() =>
+      db
+        .update(diagramSnapshots)
+        .set({ archived })
+        .where(eq(diagramSnapshots.id, snapshotId))
+        .returning()
+    );
+
+    const snapshot = results[0];
+    if (!snapshot) {
+      return yield* new NotFoundError({
+        type: "setSnapshotArchived",
+        params: { snapshotId },
+      });
+    }
+    return snapshot;
   });
 
   const restoreSnapshotToHead = Effect.fn("restoreSnapshotToHead")(function* (
@@ -357,6 +391,7 @@ export const createDiagramOperations = (db: DrizzleDB) => {
     getDiagramSnapshot,
     listSnapshots,
     listSnapshotsWithClips,
+    setSnapshotArchived,
     restoreSnapshotToHead,
     createSnapshotForClip,
     updateClipDiagramPin,

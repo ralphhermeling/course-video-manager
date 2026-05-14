@@ -16,3 +16,6 @@ plans-backup.json
 
 # Generated assets
 /assets/
+
+# Local diagram thumbnail store (fallback path when DIAGRAM_THUMBNAILS_DIR is unset)
+/diagram-thumbnails/

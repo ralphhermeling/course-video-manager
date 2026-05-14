@@ -172,8 +172,12 @@ An immutable capture of a Diagram's TLDraw scene at the moment a specific **Clip
 _Avoid_: Frame, Revision, Checkpoint, Version (overloaded with **CourseVersion**)
 
 **Active Diagram**:
-The Diagram currently loaded into the playground's TLDraw canvas. May be `null` (empty playground). Set by clicking a Diagram in the sidebar (loads its `headScene` into the canvas) or by the "New Diagram" action; persists across **Clips** until changed.
+The Diagram currently loaded into the playground's TLDraw canvas. May be `null` — in which case the playground is on its **Playground Home** screen instead. Set by picking a Diagram on Playground Home or by the "New Diagram" action (loads `headScene` into the canvas); persists across **Clips** until changed.
 _Avoid_: Current diagram, Open diagram
+
+**Playground Home**:
+The diagram-less mode of the Diagram Playground popup: a full-window picker/grid for browsing existing Diagrams and creating new ones. The popup is in this mode iff there is no **Active Diagram**. Distinct from the active canvas mode; switching between the two is an in-popup navigation, not a window-open event.
+_Avoid_: Diagram picker, Diagrams page (overloaded with the deprecated parent route)
 
 **Preserved Snapshot**:
 A **DiagramSnapshot** flagged to remain visible in its Diagram's timeline regardless of whether any non-archived **Clip** pins to it. Created via the "Preserve snapshot" action in the playground, which forks `headScene` into a new snapshot independent of any Clip. Non-preserved snapshots disappear from the timeline if all their pinning Clips become archived; Preserved Snapshots do not. A snapshot can be both Preserved _and_ pinned by Clips (the two are independent reasons to keep it visible). Surfaced in the UI via a pill on the timeline thumbnail.

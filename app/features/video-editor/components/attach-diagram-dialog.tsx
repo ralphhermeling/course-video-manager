@@ -19,6 +19,7 @@ type Snapshot = {
   id: string;
   diagramId: string;
   scene: unknown;
+  contentHash: string;
   preserved: boolean;
   createdAt: string;
 };
@@ -131,6 +132,8 @@ export const AttachDiagramDialog = (props: {
                   }}
                 >
                   <DiagramThumbnail
+                    diagramId={s.diagramId}
+                    contentHash={s.contentHash}
                     scene={s.scene}
                     className="h-10 w-14 shrink-0 overflow-hidden rounded border bg-muted"
                   />

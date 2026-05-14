@@ -18,6 +18,27 @@ export const action = async (args: Route.ActionArgs) => {
     const preserved =
       typeof body.preserved === "boolean" ? body.preserved : undefined;
     const clipId = typeof body.clipId === "string" ? body.clipId : undefined;
+    const thumbnailBase64 =
+      typeof body.thumbnailPngBase64 === "string"
+        ? body.thumbnailPngBase64
+        : undefined;
+
+    if (preserved && !thumbnailBase64) {
+      return yield* Effect.die(
+        data("Preserved snapshots require a thumbnail", { status: 400 })
+      );
+    }
+
+    let thumbnailPng: Buffer | undefined;
+    if (thumbnailBase64) {
+      try {
+        thumbnailPng = Buffer.from(thumbnailBase64, "base64");
+      } catch {
+        return yield* Effect.die(
+          data("Invalid thumbnail encoding", { status: 400 })
+        );
+      }
+    }
 
     const db = yield* DBFunctionsService;
 
@@ -25,7 +46,10 @@ export const action = async (args: Route.ActionArgs) => {
     if (clipId) {
       snapshot = yield* db.createSnapshotForClip(diagramId, clipId);
     } else {
-      snapshot = yield* db.createSnapshot(diagramId, { preserved });
+      snapshot = yield* db.createSnapshot(diagramId, {
+        preserved,
+        thumbnailPng,
+      });
     }
 
     return data({ snapshot });

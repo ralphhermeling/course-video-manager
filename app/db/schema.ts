@@ -414,6 +414,7 @@ export const diagramSnapshots = createTable(
     scene: jsonb("scene").notNull(),
     contentHash: varchar("content_hash", { length: 255 }).notNull(),
     preserved: boolean("preserved").notNull().default(false),
+    archived: boolean("archived").notNull().default(false),
     createdAt: timestamp("created_at", {
       mode: "date",
       withTimezone: true,
