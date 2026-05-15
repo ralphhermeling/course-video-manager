@@ -17,14 +17,19 @@ export type ClipForPreview = {
 
 type ProposedSection = { beforeClipId: string; title: string };
 
-type FetchState =
-  | { kind: "loading" }
-  | {
-      kind: "ready";
-      sections: ProposedSection[];
-      clips: ClipForPreview[];
-    }
-  | { kind: "error"; message: string };
+type StreamState = {
+  clips: ClipForPreview[] | null;
+  sections: ProposedSection[];
+  status: "streaming" | "done" | "error";
+  errorMessage: string | null;
+};
+
+const initialState: StreamState = {
+  clips: null,
+  sections: [],
+  status: "streaming",
+  errorMessage: null,
+};
 
 export const GenerateClipSectionsModal = (props: {
   open: boolean;
@@ -34,7 +39,7 @@ export const GenerateClipSectionsModal = (props: {
   onClose: () => void;
   onConfirm: (sections: ProposedSection[]) => Promise<void>;
 }) => {
-  const [state, setState] = useState<FetchState>({ kind: "loading" });
+  const [state, setState] = useState<StreamState>(initialState);
   const [confirming, setConfirming] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Record<number, boolean>>(
     {}
@@ -42,58 +47,82 @@ export const GenerateClipSectionsModal = (props: {
 
   useEffect(() => {
     if (!props.open) return;
-    let cancelled = false;
-    setState({ kind: "loading" });
+
+    setState({
+      ...initialState,
+      clips: props.clips ?? null,
+    });
     setConfirming(false);
-    (async () => {
-      try {
-        const res = await fetch(
-          `/api/videos/${props.videoId}/suggest-clip-sections`,
-          { method: "POST" }
-        );
-        if (!res.ok) throw new Error(`Request failed: ${res.status}`);
-        const body = (await res.json()) as {
-          sections: ProposedSection[];
-          clips?: ClipForPreview[];
-        };
-        if (!cancelled) {
-          setState({
-            kind: "ready",
-            sections: body.sections,
-            clips: props.clips ?? body.clips ?? [],
-          });
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setState({
-            kind: "error",
-            message: err instanceof Error ? err.message : "Unknown error",
-          });
+
+    const source = new EventSource(
+      `/api/videos/${props.videoId}/suggest-clip-sections`
+    );
+
+    source.addEventListener("clips", (e) => {
+      const data = JSON.parse((e as MessageEvent).data) as {
+        clips: ClipForPreview[];
+      };
+      setState((prev) => (prev.clips ? prev : { ...prev, clips: data.clips }));
+    });
+
+    source.addEventListener("section", (e) => {
+      const section = JSON.parse((e as MessageEvent).data) as ProposedSection;
+      setState((prev) => ({
+        ...prev,
+        sections: [...prev.sections, section],
+      }));
+    });
+
+    source.addEventListener("done", () => {
+      setState((prev) => ({ ...prev, status: "done" }));
+      source.close();
+    });
+
+    source.addEventListener("error", (e) => {
+      let message = "Stream error";
+      const ev = e as MessageEvent;
+      if (ev.data) {
+        try {
+          const parsed = JSON.parse(ev.data) as { message?: string };
+          if (parsed.message) message = parsed.message;
+        } catch {
+          // ignore
         }
       }
-    })();
+      setState((prev) =>
+        prev.status === "done"
+          ? prev
+          : { ...prev, status: "error", errorMessage: message }
+      );
+      source.close();
+    });
+
     return () => {
-      cancelled = true;
+      source.close();
     };
-  }, [props.open, props.videoId]);
+  }, [props.open, props.videoId, props.clips]);
 
-  const sortedClips =
-    state.kind === "ready" ? state.clips : (props.clips ?? []);
-
-  const sectionsByBeforeClipId =
-    state.kind === "ready"
-      ? new Map(state.sections.map((s) => [s.beforeClipId, s.title]))
-      : new Map<string, string>();
+  const clips = state.clips ?? [];
+  const validIds = new Set(clips.map((c) => c.id));
+  const visibleSections = state.sections.filter((s) =>
+    validIds.has(s.beforeClipId)
+  );
+  const sectionsByBeforeClipId = new Map(
+    visibleSections.map((s) => [s.beforeClipId, s.title])
+  );
 
   const handleConfirm = async () => {
-    if (state.kind !== "ready") return;
+    if (state.status !== "done") return;
     setConfirming(true);
     try {
-      await props.onConfirm(state.sections);
+      await props.onConfirm(visibleSections);
     } finally {
       setConfirming(false);
     }
   };
+
+  const isInitialLoading =
+    state.status === "streaming" && state.sections.length === 0;
 
   return (
     <Dialog
@@ -113,27 +142,29 @@ export const GenerateClipSectionsModal = (props: {
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto border rounded-md bg-muted/30 p-3 min-h-[200px]">
-          {state.kind === "loading" && (
+          {state.status === "error" && (
+            <div className="text-sm text-destructive">
+              Failed to generate: {state.errorMessage ?? "Unknown error"}
+            </div>
+          )}
+
+          {state.status !== "error" && isInitialLoading && (
             <div className="flex items-center justify-center h-full text-sm text-muted-foreground gap-2">
               <Loader2 className="size-4 animate-spin" />
               Generating proposals…
             </div>
           )}
 
-          {state.kind === "error" && (
-            <div className="text-sm text-destructive">
-              Failed to generate: {state.message}
-            </div>
-          )}
+          {state.status === "done" &&
+            visibleSections.length === 0 &&
+            state.errorMessage === null && (
+              <div className="text-sm text-muted-foreground italic">
+                AI proposed no ClipSections for this video. Confirming will
+                archive any existing ones.
+              </div>
+            )}
 
-          {state.kind === "ready" && state.sections.length === 0 && (
-            <div className="text-sm text-muted-foreground italic">
-              AI proposed no ClipSections for this video. Confirming will
-              archive any existing ones.
-            </div>
-          )}
-
-          {state.kind === "ready" && state.sections.length > 0 && (
+          {state.status !== "error" && visibleSections.length > 0 && (
             <div className="space-y-4">
               {(() => {
                 const groups: Array<{
@@ -143,7 +174,7 @@ export const GenerateClipSectionsModal = (props: {
                 let current: { title: string | null; clips: ClipForPreview[] } =
                   { title: null, clips: [] };
 
-                for (const clip of sortedClips) {
+                for (const clip of clips) {
                   const newTitle = sectionsByBeforeClipId.get(clip.id);
                   if (newTitle !== undefined) {
                     if (current.title !== null || current.clips.length > 0) {
@@ -216,6 +247,12 @@ export const GenerateClipSectionsModal = (props: {
                   );
                 });
               })()}
+              {state.status === "streaming" && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2">
+                  <Loader2 className="size-3 animate-spin" />
+                  Streaming more sections…
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -232,7 +269,7 @@ export const GenerateClipSectionsModal = (props: {
           <Button
             type="button"
             onClick={handleConfirm}
-            disabled={state.kind !== "ready" || confirming}
+            disabled={state.status !== "done" || confirming}
           >
             {confirming ? (
               <>
