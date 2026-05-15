@@ -4,6 +4,7 @@ import "tldraw/tldraw.css";
 import {
   AlertTriangle,
   ArrowLeft,
+  Copy,
   Link2,
   Pin,
   Plus,
@@ -33,6 +34,7 @@ import {
 import { DiagramThumbnail } from "@/features/diagrams/diagram-thumbnail";
 import { renderThumbnailPngBase64 } from "@/features/diagrams/render-thumbnail";
 import { EditableDiagramName } from "@/features/diagrams/editable-diagram-name";
+import { copySceneToClipboard } from "@/features/diagrams/copy-scene-to-clipboard";
 import {
   TimelinePanel,
   type Snapshot,
@@ -442,6 +444,41 @@ export default function DiagramPlaygroundActive({
     [diagramId, diagrams, navigate, revalidator]
   );
 
+  const handleCopyDiagramContents = useCallback(
+    async (id: string) => {
+      try {
+        if (id === activeDiagramId.current) {
+          if (saveTimer.current) {
+            clearTimeout(saveTimer.current);
+            saveTimer.current = null;
+          }
+          await saveHead();
+        }
+        const res = await fetch(`/api/diagrams/${id}/head`);
+        if (!res.ok) {
+          toast.error("Failed to copy diagram");
+          return;
+        }
+        const data = await res.json();
+        if (!data.headScene) {
+          toast.error("Diagram is empty");
+          return;
+        }
+        const result = await copySceneToClipboard(data.headScene);
+        if (result === "ok") {
+          toast.success("Diagram copied — paste into the canvas");
+        } else if (result === "empty") {
+          toast.error("Diagram has no shapes to copy");
+        } else {
+          toast.error("Failed to copy diagram");
+        }
+      } catch {
+        toast.error("Failed to copy diagram");
+      }
+    },
+    [saveHead]
+  );
+
   const handleCreateDiagram = useCallback(async () => {
     if (creating) return;
     setCreating(true);
@@ -620,6 +657,12 @@ export default function DiagramPlaygroundActive({
                         </div>
                       </ContextMenuTrigger>
                       <ContextMenuContent>
+                        <ContextMenuItem
+                          onSelect={() => handleCopyDiagramContents(d.id)}
+                        >
+                          <Copy />
+                          Copy contents
+                        </ContextMenuItem>
                         <ContextMenuItem
                           variant="destructive"
                           onSelect={() => handleDeleteDiagram(d.id)}

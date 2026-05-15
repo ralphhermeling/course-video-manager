@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { Archive } from "lucide-react";
+import { Archive, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { DiagramThumbnail } from "@/features/diagrams/diagram-thumbnail";
+import { copySceneToClipboard } from "@/features/diagrams/copy-scene-to-clipboard";
 
 export interface Snapshot {
   id: string;
@@ -66,6 +67,17 @@ export function TimelinePanel({
     onRestoreRequest(snapshot, headIsPreserved);
   };
 
+  const handleCopy = async (snapshot: Snapshot) => {
+    const result = await copySceneToClipboard(snapshot.scene);
+    if (result === "ok") {
+      toast.success("Snapshot copied — paste into the canvas");
+    } else if (result === "empty") {
+      toast.error("Snapshot has no shapes to copy");
+    } else {
+      toast.error("Failed to copy snapshot");
+    }
+  };
+
   const handleArchive = async (snapshot: Snapshot) => {
     setArchivingId(snapshot.id);
     try {
@@ -111,6 +123,32 @@ export function TimelinePanel({
             className="h-full w-20 shrink-0 object-contain bg-zinc-900"
           />
           <div className="min-w-0 flex-1" />
+          <Button
+            asChild
+            variant="ghost"
+            size="icon"
+            title="Copy contents"
+            aria-label="Copy snapshot contents"
+            className="h-7 w-7 text-zinc-300 hover:text-zinc-100"
+          >
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleCopy(snapshot);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleCopy(snapshot);
+                }
+              }}
+            >
+              <Copy className="h-3.5 w-3.5" />
+            </span>
+          </Button>
           <Button
             asChild
             variant="ghost"
