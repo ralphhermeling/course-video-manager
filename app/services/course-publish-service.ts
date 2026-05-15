@@ -48,6 +48,16 @@ const ALLOWED_FILE_EXTENSIONS_FROM_REPO = [
   ".mp4",
 ];
 
+const TODO_MARKER_BODY = `# TODO
+
+This lesson is marked **TODO** on the authoring side — it is intentionally incomplete in this version.
+
+- If a stub for this lesson does **not** yet exist on the course platform, create one.
+- If a stub **does** exist, leave it as-is. Do not edit it while this marker is present.
+
+The marker will be removed automatically once the lesson is marked **Ready** in a future published version (see the \`Marked Ready\` section of \`changelog.md\`).
+`;
+
 /** Extract ExportClip data from DB clip records */
 const toExportClips = (
   clips: Array<{
@@ -372,8 +382,13 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
           string,
           ReturnType<typeof buildChapters>
         >();
+        // Build a lookup of lesson authoring status keyed by sectionPath/lessonPath
+        const lessonTodoSet = new Set<string>();
         for (const section of repoWithSections.sections) {
           for (const lesson of section.lessons) {
+            if (lesson.authoringStatus === "todo") {
+              lessonTodoSet.add(`${section.path}/${lesson.path}`);
+            }
             for (const video of lesson.videos) {
               videoClipsMap.set(video.id, video.clips);
               videoChaptersMap.set(
@@ -392,6 +407,12 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
             yield* effectFs.makeDirectory(dropboxLessonDir, {
               recursive: true,
             });
+
+            if (lessonTodoSet.has(`${section.path}/${lesson.path}`)) {
+              const todoMarkerPath = path.join(dropboxLessonDir, "TODO.md");
+              yield* effectFs.writeFileString(todoMarkerPath, TODO_MARKER_BODY);
+              filesSupposedToBeInDropbox.add(todoMarkerPath);
+            }
 
             for (const video of lesson.videos) {
               const extName = path.extname(video.absolutePath);

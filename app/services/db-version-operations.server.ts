@@ -550,6 +550,7 @@ export const createVersionOperations = (db: DrizzleDB) => {
               id: l.id,
               path: l.path,
               previousVersionLessonId: l.previousVersionLessonId,
+              authoringStatus: l.authoringStatus as "todo" | "done" | null,
               videos: l.videos.map((v) => ({
                 id: v.id,
                 path: v.path,

@@ -26,6 +26,7 @@ function makeLesson(
     id,
     path,
     previousVersionLessonId,
+    authoringStatus: "done",
     videos: clipTexts.length > 0 ? [makeVideo("Problem", clipTexts)] : [],
   };
 }
@@ -40,6 +41,7 @@ function makeLessonWithVideos(
     id,
     path,
     previousVersionLessonId,
+    authoringStatus: "done",
     videos,
   };
 }
@@ -53,6 +55,7 @@ function makeLessonWithEmptyVideo(
     id,
     path,
     previousVersionLessonId,
+    authoringStatus: "done",
     videos: [makeVideo("Problem")],
   };
 }

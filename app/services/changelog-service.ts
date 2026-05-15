@@ -15,12 +15,18 @@ function formatPathHumanReadable(path: string): string {
 }
 
 type SectionChanges = {
-  newLessons: Array<{ lessonPath: string; videoPaths: string[] }>;
+  newLessons: Array<{
+    lessonPath: string;
+    videoPaths: string[];
+    authoringStatus: "todo" | "done" | null;
+  }>;
   renamedLessons: Array<{ oldPath: string; newPath: string }>;
   updatedLessons: Array<{
     lessonPath: string;
     videoChanges: VideoChange[];
   }>;
+  markedReady: Array<{ lessonPath: string }>;
+  markedTodo: Array<{ lessonPath: string }>;
   deletedLessons: Array<{ lessonPath: string; videoPaths: string[] }>;
   sectionRenamed?: { oldPath: string; newPath: string };
 };
@@ -42,6 +48,8 @@ function organizeChangesBySection(
         newLessons: [],
         renamedLessons: [],
         updatedLessons: [],
+        markedReady: [],
+        markedTodo: [],
         deletedLessons: [],
       });
     }
@@ -52,6 +60,19 @@ function organizeChangesBySection(
     getSection(lesson.sectionPath).newLessons.push({
       lessonPath: lesson.lessonPath,
       videoPaths: lesson.videoPaths,
+      authoringStatus: lesson.authoringStatus,
+    });
+  }
+
+  for (const lesson of changes.markedReady) {
+    getSection(lesson.sectionPath).markedReady.push({
+      lessonPath: lesson.lessonPath,
+    });
+  }
+
+  for (const lesson of changes.markedTodo) {
+    getSection(lesson.sectionPath).markedTodo.push({
+      lessonPath: lesson.lessonPath,
     });
   }
 
@@ -100,6 +121,8 @@ function organizeChangesBySection(
           newLessons: [],
           renamedLessons: [],
           updatedLessons: [],
+          markedReady: [],
+          markedTodo: [],
           deletedLessons: [],
         },
       ]);
@@ -152,9 +175,11 @@ export function generateChangelog(versions: VersionWithStructure[]): string {
     "",
     "## Glossary",
     "",
-    "- **New Lessons**: Newly added content.",
+    "- **New Lessons**: Newly added content. A `(TODO)` suffix means the lesson is intentionally incomplete on the authoring side — create a course-platform stub if none exists, and look for a `TODO.md` sentinel inside the lesson's folder.",
     "- **Renamed**: The lesson or section name has changed.",
     "- **Updated**: The video has been updated and the readme needs to be rewritten.",
+    "- **Marked Ready**: The lesson's authoring status flipped from TODO to done — it's now ready for the course-platform stub to be filled in.",
+    "- **Marked TODO**: The lesson's authoring status flipped from done back to TODO. Existing course-platform stubs should not be touched while this state holds.",
     "- **Deleted**: The lesson or section has been removed.",
     "",
   ];
@@ -190,6 +215,8 @@ export function generateChangelog(versions: VersionWithStructure[]): string {
       changes.renamedSections.length > 0 ||
       changes.renamedLessons.length > 0 ||
       changes.updatedLessons.length > 0 ||
+      changes.markedReady.length > 0 ||
+      changes.markedTodo.length > 0 ||
       changes.deletedSections.length > 0 ||
       changes.deletedLessons.length > 0;
 
@@ -219,6 +246,8 @@ export function generateChangelog(versions: VersionWithStructure[]): string {
         sectionChange.newLessons.length > 0 ||
         sectionChange.renamedLessons.length > 0 ||
         sectionChange.updatedLessons.length > 0 ||
+        sectionChange.markedReady.length > 0 ||
+        sectionChange.markedTodo.length > 0 ||
         sectionChange.deletedLessons.length > 0 ||
         sectionChange.sectionRenamed;
 
@@ -241,10 +270,29 @@ export function generateChangelog(versions: VersionWithStructure[]): string {
         lines.push("#### New Lessons");
         lines.push("");
         for (const lesson of sectionChange.newLessons) {
-          lines.push(`- ${formatCodePath(lesson.lessonPath)}`);
+          const suffix = lesson.authoringStatus === "todo" ? " (TODO)" : "";
+          lines.push(`- ${formatCodePath(lesson.lessonPath)}${suffix}`);
           for (const videoPath of lesson.videoPaths) {
             lines.push(`  - ${formatCodePath(videoPath)}`);
           }
+        }
+        lines.push("");
+      }
+
+      if (sectionChange.markedReady.length > 0) {
+        lines.push("#### Marked Ready");
+        lines.push("");
+        for (const lesson of sectionChange.markedReady) {
+          lines.push(`- ${formatCodePath(lesson.lessonPath)}`);
+        }
+        lines.push("");
+      }
+
+      if (sectionChange.markedTodo.length > 0) {
+        lines.push("#### Marked TODO");
+        lines.push("");
+        for (const lesson of sectionChange.markedTodo) {
+          lines.push(`- ${formatCodePath(lesson.lessonPath)}`);
         }
         lines.push("");
       }

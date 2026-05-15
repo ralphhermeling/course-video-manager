@@ -11,6 +11,7 @@ export type VersionWithStructure = {
       id: string;
       path: string;
       previousVersionLessonId: string | null;
+      authoringStatus: "todo" | "done" | null;
       videos: Array<{
         id: string;
         path: string;
@@ -40,6 +41,7 @@ export type VersionChanges = {
     sectionPath: string;
     lessonPath: string;
     videoPaths: string[];
+    authoringStatus: "todo" | "done" | null;
   }>;
   renamedSections: Array<{ oldPath: string; newPath: string }>;
   renamedLessons: Array<{
@@ -52,6 +54,8 @@ export type VersionChanges = {
     lessonPath: string;
     videoChanges: VideoChange[];
   }>;
+  markedReady: Array<{ sectionPath: string; lessonPath: string }>;
+  markedTodo: Array<{ sectionPath: string; lessonPath: string }>;
   deletedSections: Array<{ sectionPath: string }>;
   deletedLessons: Array<{
     sectionPath: string;
@@ -176,6 +180,8 @@ export function detectChanges(
     renamedSections: [],
     renamedLessons: [],
     updatedLessons: [],
+    markedReady: [],
+    markedTodo: [],
     deletedSections: [],
     deletedLessons: [],
   };
@@ -202,33 +208,67 @@ export function detectChanges(
 
     for (const lesson of section.lessons) {
       const currentHasContent = lessonHasContent(lesson);
+      const isTodo = lesson.authoringStatus === "todo";
 
       if (!lesson.previousVersionLessonId) {
-        if (currentHasContent) {
+        if (currentHasContent || isTodo) {
           changes.newLessons.push({
             sectionPath: section.path,
             lessonPath: lesson.path,
             videoPaths: getVideosWithContent(lesson),
+            authoringStatus: lesson.authoringStatus,
           });
         }
       } else {
         const prevLesson = prevLessonLookup.get(lesson.previousVersionLessonId);
         if (!prevLesson) {
-          if (currentHasContent) {
+          if (currentHasContent || isTodo) {
             changes.newLessons.push({
               sectionPath: section.path,
               lessonPath: lesson.path,
               videoPaths: getVideosWithContent(lesson),
+              authoringStatus: lesson.authoringStatus,
             });
           }
         } else {
           const prevHadContent = lessonHasContent(prevLesson.lesson);
+          const prevStatus = prevLesson.lesson.authoringStatus;
+          const curStatus = lesson.authoringStatus;
+          const statusFlipped =
+            prevStatus !== null &&
+            curStatus !== null &&
+            prevStatus !== curStatus;
 
-          if (!prevHadContent && currentHasContent) {
+          if (statusFlipped) {
+            if (prevStatus === "todo" && curStatus === "done") {
+              changes.markedReady.push({
+                sectionPath: section.path,
+                lessonPath: lesson.path,
+              });
+            } else {
+              changes.markedTodo.push({
+                sectionPath: section.path,
+                lessonPath: lesson.path,
+              });
+            }
+            // Status transitions take precedence — skip the rename bucket for
+            // this lesson. Still emit any video-content changes below.
+            if (prevHadContent && currentHasContent) {
+              const videoChanges = detectVideoChanges(lesson, prevLesson);
+              if (videoChanges.length > 0) {
+                changes.updatedLessons.push({
+                  sectionPath: section.path,
+                  lessonPath: lesson.path,
+                  videoChanges,
+                });
+              }
+            }
+          } else if (!prevHadContent && currentHasContent) {
             changes.newLessons.push({
               sectionPath: section.path,
               lessonPath: lesson.path,
               videoPaths: getVideosWithContent(lesson),
+              authoringStatus: lesson.authoringStatus,
             });
           } else if (prevHadContent && !currentHasContent) {
             changes.deletedLessons.push({

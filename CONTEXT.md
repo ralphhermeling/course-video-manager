@@ -68,8 +68,16 @@ The chain reaction when materializing a lesson inside a ghost course: assigns fi
 ### Authoring lifecycle
 
 **Lesson Authoring Status**:
-A per-version marker on a real **Lesson** indicating where it sits in the authoring workflow. Two values: `todo` (default for newly created or materialized real lessons) and `done` (set by clicking the To-Do pill in the UI). Stored as `authoringStatus` on the lesson row and copied forward by `copyVersionStructure` at Publish, so a Published Version's lessons keep whatever status they had at publish time. Subject to a biconditional invariant with `fsStatus`: a real lesson always has a status, a **Ghost Lesson** never does. Distinct from `fsStatus` (filesystem presence) and from **Pitch Status** (which tracks pitches, not lessons).
+A per-version marker on a real **Lesson** indicating where it sits in the authoring workflow. Two values: `todo` (default for newly created or materialized real lessons) and `done` (set by clicking the To-Do pill in the UI). Stored as `authoringStatus` on the lesson row and copied forward by `copyVersionStructure` at Publish, so a Published Version's lessons keep whatever status they had at publish time. Subject to a biconditional invariant with `fsStatus`: a real lesson always has a status, a **Ghost Lesson** never does. Distinct from `fsStatus` (filesystem presence) and from **Pitch Status** (which tracks pitches, not lessons). Surfaced in the published output via the **TODO Marker** and in the changelog via the **Marked Ready** / **Marked TODO** transitions.
 _Avoid_: TODO flag, Lesson status (ambiguous with `fsStatus`), Completion
+
+**TODO Marker**:
+A `TODO.md` sentinel file Publish writes into every real **Lesson**'s dropbox folder when its **Lesson Authoring Status** is `todo`. Fixed template, identical across all TODO lessons. Purely additive — videos and source files still publish normally. Cleaned up by the stale-file sweep when the lesson flips to `done`. Ghost Lessons never get one.
+_Avoid_: Sentinel file (too generic), TODO file, Stub marker
+
+**Marked Ready** / **Marked TODO**:
+The changelog buckets for **Lesson Authoring Status** transitions across **Published Versions** — `todo → done` and `done → todo` respectively. First-class per-section sections in `changelog.md`.
+_Avoid_: Completed, Reopened
 
 ### Video and clips
 
