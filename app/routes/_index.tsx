@@ -460,11 +460,11 @@ function ComponentInner(props: Route.ComponentProps) {
                   />
                   {courseWarningCount > 0 && (
                     <span
-                      title={`${courseWarningCount} video${courseWarningCount === 1 ? "" : "s"} missing an opening section`}
+                      title={`${courseWarningCount} video warning${courseWarningCount === 1 ? "" : "s"}`}
                       className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 px-2 py-1 text-xs font-medium text-amber-600 dark:text-amber-400"
                     >
                       <AlertTriangle className="w-3 h-3" />
-                      {courseWarningCount} missing opening
+                      {courseWarningCount} warning
                       {courseWarningCount === 1 ? "" : "s"}
                     </span>
                   )}

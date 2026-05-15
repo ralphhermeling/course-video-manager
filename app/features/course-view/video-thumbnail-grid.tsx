@@ -93,7 +93,7 @@ function VideoThumbnailItem({
                 title="Missing opening section — right-click to generate"
               >
                 <AlertTriangle className="w-2.5 h-2.5" />
-                Missing opening
+                Missing opening section
               </span>
             )}
           </div>
