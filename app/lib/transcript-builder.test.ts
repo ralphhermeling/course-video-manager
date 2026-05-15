@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { buildTranscript } from "./transcript-builder";
+import {
+  buildTranscript,
+  formatProseTranscript,
+  toDiffArray,
+  toTranscriptItems,
+} from "./transcript-builder";
 import type { ClipInput, ClipSectionInput } from "./transcript-builder";
 
 const makeClip = (
@@ -203,6 +208,74 @@ describe("buildTranscript", () => {
     expect(result.indexedClips).toHaveLength(3);
     expect(result.indexedClips[0]!.index).toBe(1);
     expect(result.indexedClips[0]!.text).toBeNull();
+  });
+
+  it("toTranscriptItems interleaves clips and sections in timeline order", () => {
+    const items = toTranscriptItems(
+      [
+        { order: "a1", text: "First" },
+        { order: "a3", text: "Second" },
+      ],
+      [
+        { order: "a0", name: "Intro" },
+        { order: "a2", name: "Main" },
+      ]
+    );
+
+    expect(items).toEqual([
+      { type: "section", name: "Intro" },
+      { type: "clip", text: "First" },
+      { type: "section", name: "Main" },
+      { type: "clip", text: "Second" },
+    ]);
+  });
+
+  it("toTranscriptItems preserves trailing empty sections", () => {
+    const items = toTranscriptItems(
+      [{ order: "a0", text: "Body" }],
+      [{ order: "a1", name: "Trailing" }]
+    );
+
+    expect(items).toEqual([
+      { type: "clip", text: "Body" },
+      { type: "section", name: "Trailing" },
+    ]);
+  });
+
+  it("toTranscriptItems skips clips with null or empty text", () => {
+    const items = toTranscriptItems(
+      [
+        { order: "a0", text: null },
+        { order: "a1", text: "" },
+        { order: "a2", text: "Kept" },
+      ],
+      []
+    );
+
+    expect(items).toEqual([{ type: "clip", text: "Kept" }]);
+  });
+
+  it("formatProseTranscript renders sections as ## headers between paragraphs", () => {
+    const items = toTranscriptItems(
+      [
+        { order: "a1", text: "First clip" },
+        { order: "a3", text: "Second clip" },
+      ],
+      [{ order: "a2", name: "Main" }]
+    );
+
+    expect(formatProseTranscript(items)).toBe(
+      "First clip\n\n## Main\n\nSecond clip"
+    );
+  });
+
+  it("toDiffArray renders sections as ## name strings", () => {
+    const items = toTranscriptItems(
+      [{ order: "a1", text: "Hello" }],
+      [{ order: "a0", name: "Intro" }]
+    );
+
+    expect(toDiffArray(items)).toEqual(["## Intro", "Hello"]);
   });
 
   it("preserves clip metadata in indexedClips", () => {

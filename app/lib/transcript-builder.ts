@@ -18,6 +18,112 @@ export interface ClipSectionInput {
   name: string;
 }
 
+export type TranscriptItem =
+  | { type: "clip"; text: string }
+  | { type: "section"; name: string };
+
+type OrderedItem =
+  | {
+      type: "clip";
+      order: string;
+      text: string | null;
+      sourceStartTime: number;
+      sourceEndTime: number;
+      videoFilename: string;
+    }
+  | { type: "section"; order: string; id: string; name: string };
+
+function toOrderedItems(
+  clips: readonly ClipInput[],
+  clipSections: readonly ClipSectionInput[]
+): OrderedItem[] {
+  return sortByOrder<OrderedItem>([
+    ...clips.map<OrderedItem>((clip) => ({
+      type: "clip",
+      order: clip.order,
+      text: clip.text,
+      sourceStartTime: clip.sourceStartTime,
+      sourceEndTime: clip.sourceEndTime,
+      videoFilename: clip.videoFilename,
+    })),
+    ...clipSections.map<OrderedItem>((section) => ({
+      type: "section",
+      order: section.order,
+      id: section.id,
+      name: section.name,
+    })),
+  ]);
+}
+
+export type ProjectionClipInput = {
+  order: string;
+  text: string | null;
+};
+
+export type ProjectionClipSectionInput = {
+  order: string;
+  name: string;
+};
+
+export function toTranscriptItems(
+  clips: readonly ProjectionClipInput[],
+  clipSections: readonly ProjectionClipSectionInput[]
+): TranscriptItem[] {
+  const sorted = sortByOrder<
+    | { kind: "clip"; order: string; text: string | null }
+    | { kind: "section"; order: string; name: string }
+  >([
+    ...clips.map((c) => ({
+      kind: "clip" as const,
+      order: c.order,
+      text: c.text,
+    })),
+    ...clipSections.map((s) => ({
+      kind: "section" as const,
+      order: s.order,
+      name: s.name,
+    })),
+  ]);
+
+  const result: TranscriptItem[] = [];
+  for (const item of sorted) {
+    if (item.kind === "section") {
+      result.push({ type: "section", name: item.name });
+    } else if (item.text) {
+      result.push({ type: "clip", text: item.text });
+    }
+  }
+  return result;
+}
+
+export function formatProseTranscript(
+  items: readonly TranscriptItem[]
+): string {
+  const parts: string[] = [];
+  let currentParagraph: string[] = [];
+  for (const item of items) {
+    if (item.type === "section") {
+      if (currentParagraph.length > 0) {
+        parts.push(currentParagraph.join(" "));
+        currentParagraph = [];
+      }
+      parts.push(`## ${item.name}`);
+    } else {
+      currentParagraph.push(item.text);
+    }
+  }
+  if (currentParagraph.length > 0) {
+    parts.push(currentParagraph.join(" "));
+  }
+  return parts.join("\n\n");
+}
+
+export function toDiffArray(items: readonly TranscriptItem[]): string[] {
+  return items.map((item) =>
+    item.type === "section" ? `## ${item.name}` : item.text
+  );
+}
+
 export function buildTranscript(
   clips: readonly ClipInput[],
   clipSections: readonly ClipSectionInput[]
@@ -27,22 +133,7 @@ export function buildTranscript(
   wordCount: number;
   sections: SectionWithWordCount[];
 } {
-  const sortedItems = sortByOrder([
-    ...clips.map((clip) => ({
-      type: "clip" as const,
-      order: clip.order,
-      text: clip.text,
-      sourceStartTime: clip.sourceStartTime,
-      sourceEndTime: clip.sourceEndTime,
-      videoFilename: clip.videoFilename,
-    })),
-    ...clipSections.map((section) => ({
-      type: "clip-section" as const,
-      order: section.order,
-      id: section.id,
-      name: section.name,
-    })),
-  ]);
+  const sortedItems = toOrderedItems(clips, clipSections);
 
   const indexedClips: IndexedClip[] = [];
   const transcriptParts: string[] = [];
@@ -53,7 +144,7 @@ export function buildTranscript(
   let currentSectionIndex = -1;
 
   for (const item of sortedItems) {
-    if (item.type === "clip-section") {
+    if (item.type === "section") {
       if (currentParagraph.length > 0) {
         transcriptParts.push(currentParagraph.join(" "));
         currentParagraph = [];

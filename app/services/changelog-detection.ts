@@ -1,3 +1,6 @@
+import type { TranscriptItem } from "@/lib/transcript-builder";
+import { toDiffArray } from "@/lib/transcript-builder";
+
 export type VersionWithStructure = {
   id: string;
   name: string;
@@ -15,16 +18,14 @@ export type VersionWithStructure = {
       videos: Array<{
         id: string;
         path: string;
-        clips: Array<{
-          id: string;
-          text: string;
-        }>;
+        transcript: TranscriptItem[];
       }>;
     }>;
   }>;
 };
 
 type Lesson = VersionWithStructure["sections"][number]["lessons"][number];
+type VideoEntry = Lesson["videos"][number];
 
 export type VideoChange =
   | {
@@ -64,11 +65,15 @@ export type VersionChanges = {
   }>;
 };
 
-function lessonHasContent(lesson: Lesson): boolean {
-  return lesson.videos.some((v) => v.clips.length > 0);
+function videoHasClipContent(video: VideoEntry): boolean {
+  return video.transcript.some((item) => item.type === "clip");
 }
 
-type VideoData = { videoPath: string; clips: string[] };
+function lessonHasContent(lesson: Lesson): boolean {
+  return lesson.videos.some(videoHasClipContent);
+}
+
+type VideoData = { videoPath: string; diffArray: string[] };
 
 type LessonLookupEntry = {
   sectionPath: string;
@@ -87,7 +92,7 @@ function buildLessonLookup(
       for (const video of lesson.videos) {
         videosByPath.set(video.path, {
           videoPath: video.path,
-          clips: video.clips.map((c) => c.text.trim()),
+          diffArray: toDiffArray(video.transcript).map((line) => line.trim()),
         });
       }
       lookup.set(lesson.id, {
@@ -102,7 +107,7 @@ function buildLessonLookup(
 }
 
 function getVideosWithContent(lesson: Lesson): string[] {
-  return lesson.videos.filter((v) => v.clips.length > 0).map((v) => v.path);
+  return lesson.videos.filter(videoHasClipContent).map((v) => v.path);
 }
 
 function detectVideoChanges(
@@ -114,34 +119,34 @@ function detectVideoChanges(
   for (const video of currentLesson.videos) {
     currentVideosByPath.set(
       video.path,
-      video.clips.map((c) => c.text.trim())
+      toDiffArray(video.transcript).map((line) => line.trim())
     );
   }
 
-  for (const [videoPath, currentClips] of currentVideosByPath) {
+  for (const [videoPath, currentItems] of currentVideosByPath) {
     const prevVideo = prevEntry.videosByPath.get(videoPath);
-    if (!prevVideo || prevVideo.clips.length === 0) {
-      if (currentClips.length > 0) {
+    if (!prevVideo || prevVideo.diffArray.length === 0) {
+      if (currentItems.length > 0) {
         changes.push({ type: "new", videoPath });
       }
-    } else if (currentClips.length === 0) {
+    } else if (currentItems.length === 0) {
       changes.push({ type: "deleted", videoPath });
     } else {
-      const oldJoined = prevVideo.clips.join(" ");
-      const newJoined = currentClips.join(" ");
+      const oldJoined = prevVideo.diffArray.join(" ");
+      const newJoined = currentItems.join(" ");
       if (oldJoined !== newJoined) {
         changes.push({
           type: "updated",
           videoPath,
-          oldClips: prevVideo.clips,
-          newClips: currentClips,
+          oldClips: prevVideo.diffArray,
+          newClips: currentItems,
         });
       }
     }
   }
 
   for (const [videoPath, prevVideo] of prevEntry.videosByPath) {
-    if (!currentVideosByPath.has(videoPath) && prevVideo.clips.length > 0) {
+    if (!currentVideosByPath.has(videoPath) && prevVideo.diffArray.length > 0) {
       changes.push({ type: "deleted", videoPath });
     }
   }
@@ -275,7 +280,7 @@ export function detectChanges(
               sectionPath: section.path,
               lessonPath: prevLesson.lessonPath,
               videoPaths: [...prevLesson.videosByPath.entries()]
-                .filter(([, v]) => v.clips.length > 0)
+                .filter(([, v]) => v.diffArray.length > 0)
                 .map(([p]) => p),
             });
           } else if (prevHadContent && currentHasContent) {

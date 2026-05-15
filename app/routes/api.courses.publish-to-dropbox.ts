@@ -20,6 +20,10 @@ import { Command, FileSystem } from "@effect/platform";
 import path from "node:path";
 import { makeSemaphore } from "effect/Effect";
 import { generateChangelog } from "@/services/changelog-service";
+import {
+  formatProseTranscript,
+  toTranscriptItems,
+} from "@/lib/transcript-builder";
 import { data } from "react-router";
 import {
   computeExportHash,
@@ -197,7 +201,10 @@ export const action = async ({ request }: Route.ActionArgs) => {
     });
 
     // Build a lookup of video ID -> clips for transcript export
-    const videoClipsMap = new Map<string, { text: string | null }[]>();
+    const videoTranscriptItemsMap = new Map<
+      string,
+      ReturnType<typeof toTranscriptItems>
+    >();
     const videoChaptersMap = new Map<
       string,
       ReturnType<typeof buildChapters>
@@ -205,7 +212,10 @@ export const action = async ({ request }: Route.ActionArgs) => {
     for (const section of repoWithSections.sections) {
       for (const lesson of section.lessons) {
         for (const video of lesson.videos) {
-          videoClipsMap.set(video.id, video.clips);
+          videoTranscriptItemsMap.set(
+            video.id,
+            toTranscriptItems(video.clips, video.clipSections)
+          );
           videoChaptersMap.set(
             video.id,
             buildChapters(video.clips, video.clipSections)
@@ -255,12 +265,9 @@ export const action = async ({ request }: Route.ActionArgs) => {
           }
 
           // Write transcript file for this video
-          const clips = videoClipsMap.get(video.id);
-          if (clips && clips.length > 0) {
-            const transcript = clips
-              .map((c) => c.text)
-              .filter(Boolean)
-              .join(" ");
+          const transcriptItems = videoTranscriptItemsMap.get(video.id);
+          if (transcriptItems && transcriptItems.length > 0) {
+            const transcript = formatProseTranscript(transcriptItems);
             if (transcript) {
               const transcriptPath = path.join(
                 dropboxLessonDirectory,

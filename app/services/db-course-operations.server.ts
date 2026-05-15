@@ -16,6 +16,10 @@ import {
 } from "@/services/db-service-errors";
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { Effect } from "effect";
+import {
+  formatProseTranscript,
+  toTranscriptItems,
+} from "@/lib/transcript-builder";
 
 const makeDbCall = <T>(fn: () => Promise<T>) => {
   return Effect.tryPromise({
@@ -285,9 +289,14 @@ export const createCourseOperations = (db: DrizzleDB) => {
                         where: eq(videos.archived, false),
                         with: {
                           clips: {
-                            columns: { text: true },
+                            columns: { text: true, order: true },
                             orderBy: asc(clips.order),
                             where: eq(clips.archived, false),
+                          },
+                          clipSections: {
+                            columns: { name: true, order: true },
+                            orderBy: asc(clipSections.order),
+                            where: eq(clipSections.archived, false),
                           },
                         },
                       },
@@ -307,10 +316,8 @@ export const createCourseOperations = (db: DrizzleDB) => {
       for (const section of version.sections) {
         for (const lesson of section.lessons) {
           for (const video of lesson.videos) {
-            transcripts[video.id] = video.clips
-              .map((c) => c.text)
-              .filter(Boolean)
-              .join(" ");
+            const items = toTranscriptItems(video.clips, video.clipSections);
+            transcripts[video.id] = formatProseTranscript(items);
           }
         }
       }

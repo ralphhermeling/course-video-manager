@@ -9,10 +9,7 @@ function makeVideo(videoPath: string, clipTexts: string[] = []): Video {
   return {
     id: `video-${videoPath}`,
     path: videoPath,
-    clips: clipTexts.map((text, i) => ({
-      id: `clip-${videoPath}-${i}`,
-      text,
-    })),
+    transcript: clipTexts.map((text) => ({ type: "clip", text })),
   };
 }
 

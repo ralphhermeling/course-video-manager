@@ -105,6 +105,10 @@ _Avoid_: Clip group, Divider, Marker (in authoring); Chapter (outside the export
 A clip added to the frontend state during recording before it is persisted to the database.
 _Avoid_: Pending clip, Temporary clip
 
+**Transcript**:
+The ordered text projection of a **Video** — its **Clips** and **ClipSections** interleaved in timeline order. The unit of comparison for changelog diffs and the format shipped as `{video}.transcript.md` during **Publish**. Changes to either Clips or ClipSections are first-class changes to the Transcript: a ClipSection rename, insertion, deletion, or reorder is a Transcript change in the same sense that editing a Clip's text is. Rendered with each ClipSection as a `## <name>` header between paragraphs of clip text.
+_Avoid_: Clip text (only covers Clips), Joined clips, Caption (reserved for the per-clip transcription product)
+
 ### Video warnings
 
 **Video Warning**:

@@ -17,6 +17,7 @@ import {
 } from "@/services/db-service-errors";
 import { asc, and, desc, eq, isNull } from "drizzle-orm";
 import { Effect } from "effect";
+import { toTranscriptItems } from "@/lib/transcript-builder";
 
 const makeDbCall = <T>(fn: () => Promise<T>) => {
   return Effect.tryPromise({
@@ -525,6 +526,10 @@ export const createVersionOperations = (db: DrizzleDB) => {
                           orderBy: asc(clips.order),
                           where: eq(clips.archived, false),
                         },
+                        clipSections: {
+                          orderBy: asc(clipSections.order),
+                          where: eq(clipSections.archived, false),
+                        },
                       },
                     },
                   },
@@ -554,10 +559,7 @@ export const createVersionOperations = (db: DrizzleDB) => {
               videos: l.videos.map((v) => ({
                 id: v.id,
                 path: v.path,
-                clips: v.clips.map((c) => ({
-                  id: c.id,
-                  text: c.text,
-                })),
+                transcript: toTranscriptItems(v.clips, v.clipSections),
               })),
             })),
         })),

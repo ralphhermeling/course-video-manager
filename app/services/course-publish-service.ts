@@ -16,6 +16,10 @@ import { garbageCollect } from "./export-hash.server";
 import { FINAL_VIDEO_PADDING } from "@/features/video-editor/constants";
 import { generateChangelog } from "./changelog-service";
 import { buildChapters, resolveSectionsWithVideos } from "./publish-to-dropbox";
+import {
+  formatProseTranscript,
+  toTranscriptItems,
+} from "@/lib/transcript-builder";
 
 export class PublishValidationError extends Data.TaggedError(
   "PublishValidationError"
@@ -376,8 +380,10 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
         const dropboxCourseDir = path.join(DROPBOX_PATH, course.name);
         const filesSupposedToBeInDropbox = new Set<string>();
 
-        // Build a lookup of video ID -> clips for transcript export
-        const videoClipsMap = new Map<string, { text: string | null }[]>();
+        const videoTranscriptItemsMap = new Map<
+          string,
+          ReturnType<typeof toTranscriptItems>
+        >();
         const videoChaptersMap = new Map<
           string,
           ReturnType<typeof buildChapters>
@@ -390,7 +396,10 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
               lessonTodoSet.add(`${section.path}/${lesson.path}`);
             }
             for (const video of lesson.videos) {
-              videoClipsMap.set(video.id, video.clips);
+              videoTranscriptItemsMap.set(
+                video.id,
+                toTranscriptItems(video.clips, video.clipSections)
+              );
               videoChaptersMap.set(
                 video.id,
                 buildChapters(video.clips, video.clipSections)
@@ -448,12 +457,9 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
               }
 
               // Write transcript
-              const clips = videoClipsMap.get(video.id);
-              if (clips && clips.length > 0) {
-                const transcript = clips
-                  .map((c) => c.text)
-                  .filter(Boolean)
-                  .join(" ");
+              const transcriptItems = videoTranscriptItemsMap.get(video.id);
+              if (transcriptItems && transcriptItems.length > 0) {
+                const transcript = formatProseTranscript(transcriptItems);
                 if (transcript) {
                   const transcriptPath = path.join(
                     dropboxLessonDir,
