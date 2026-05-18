@@ -53,7 +53,11 @@ export function groupDeliverables(
     }
   }
 
-  pastHistory.sort((a, b) => b.date.localeCompare(a.date));
+  pastHistory.sort((a, b) => {
+    const dateCmp = b.date.localeCompare(a.date);
+    if (dateCmp !== 0) return dateCmp;
+    return b.createdAt.getTime() - a.createdAt.getTime();
+  });
 
   const sorted = [...inline].sort((a, b) => {
     const dateCmp = a.date.localeCompare(b.date);

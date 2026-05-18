@@ -277,6 +277,38 @@ describe("groupDeliverables", () => {
     expect(result.weekGroups[0]!.items[0]!.title).toBe("Done ahead of plan");
   });
 
+  it("pastHistory uses createdAt desc as tie-breaker when dates match", () => {
+    const items = [
+      makeDeliverable({
+        id: "first-created",
+        date: "2026-05-10",
+        title: "Created first",
+        status: "done",
+        createdAt: new Date("2026-05-01T08:00:00Z"),
+      }),
+      makeDeliverable({
+        id: "second-created",
+        date: "2026-05-10",
+        title: "Created second",
+        status: "done",
+        createdAt: new Date("2026-05-01T16:00:00Z"),
+      }),
+      makeDeliverable({
+        id: "third-created",
+        date: "2026-05-10",
+        title: "Created third",
+        status: "cancelled",
+        createdAt: new Date("2026-05-01T12:00:00Z"),
+      }),
+    ];
+    const result = groupDeliverables(items, today);
+    expect(result.pastHistory.map((d) => d.id)).toEqual([
+      "second-created",
+      "third-created",
+      "first-created",
+    ]);
+  });
+
   // ─── overdueCount tests ─────────────────────────────────────────────
 
   it("computes overdueCount per week group", () => {

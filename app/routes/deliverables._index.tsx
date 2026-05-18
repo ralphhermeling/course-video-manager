@@ -70,8 +70,7 @@ function parseDate(s: string): Date {
   return new Date(y!, m! - 1, d!);
 }
 
-function formatTodayStr(): string {
-  const d = new Date();
+function formatDateStr(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
@@ -287,7 +286,7 @@ export default function DeliverablesCalendarPage() {
 
   const today = new Date();
   const todayWeek = isoWeek(today);
-  const todayStr = formatTodayStr();
+  const todayStr = formatDateStr(today);
 
   const deliverablesForGrouping: DeliverableForGrouping[] = deliverables.map(
     (d) => ({
