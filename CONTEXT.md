@@ -214,7 +214,7 @@ _Avoid_: Changelog (ambiguous with course publish changelog), Skill post, Change
 ### Deliverables and scheduling
 
 **Deliverable**:
-A manually-authored entry on the **Deliverables Calendar**, pinned to a single all-day date. May link to zero or more **Courses** and/or **Pitches**; links are informational only, never derived.
+A manually-authored entry on the **Deliverables Calendar**, pinned to a single all-day date. May link to zero or more **Courses** and/or **Pitches**; links are informational only, never derived. Archived Deliverables are hidden from both the active calendar and the history disclosure — archive is the only hide.
 _Avoid_: Task, Item, Scheduled work, Ship target
 
 **Deliverable Status**:
@@ -224,6 +224,10 @@ _Avoid_: Completion, Deliverable state
 **Deliverables Calendar**:
 The in-app view of all **Deliverables** across past and future dates, used for both forward planning and inventory.
 _Avoid_: Delivery calendar, Schedule, Roadmap, Content calendar
+
+**ISO Week**:
+ISO 8601 week numbering: weeks start on Monday and week 1 is the week containing the year's first Thursday. Surfaces as `Week N` in the agenda header. Reusable by future surfaces.
+_Avoid_: Calendar week, Week number (without "ISO" qualifier)
 
 ### Ordering and lifecycle
 

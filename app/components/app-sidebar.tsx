@@ -21,6 +21,7 @@ import {
 } from "@/lib/diagram-window";
 import {
   Archive,
+  CalendarDays,
   Eye,
   FolderGit2,
   FolderOpen,
@@ -297,6 +298,19 @@ export function AppSidebar({
           <Eye className="w-3 h-3" />
           View All Pitches
         </Link>
+      </div>
+
+      {/* Deliverables Card */}
+      <div className="rounded-lg border bg-card p-3">
+        <div className="flex items-center gap-2 mb-2">
+          <CalendarDays className="w-4 h-4 text-muted-foreground" />
+          <Link
+            to="/deliverables"
+            className="text-sm font-medium hover:underline"
+          >
+            Deliverables
+          </Link>
+        </div>
       </div>
 
       {/* Diagrams Card */}

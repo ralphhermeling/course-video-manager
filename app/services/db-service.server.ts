@@ -8,6 +8,7 @@ import { createLinkAuthOperations } from "@/services/db-link-auth-operations.ser
 import { createThumbnailOperations } from "@/services/db-thumbnail-operations.server";
 import { createPitchOperations } from "@/services/db-pitch-operations.server";
 import { createDiagramOperations } from "@/services/db-diagram-operations.server";
+import { createDeliverableOperations } from "@/services/db-deliverable-operations.server";
 import { Effect } from "effect";
 
 export class DBFunctionsService extends Effect.Service<DBFunctionsService>()(
@@ -148,6 +149,9 @@ export class DBFunctionsService extends Effect.Service<DBFunctionsService>()(
         deletePitch,
       } = createPitchOperations(db);
 
+      const { listDeliverables, createDeliverable } =
+        createDeliverableOperations(db);
+
       const {
         createDiagram,
         listDiagrams,
@@ -285,6 +289,8 @@ export class DBFunctionsService extends Effect.Service<DBFunctionsService>()(
         restoreSnapshotToHead,
         createSnapshotForClip,
         updateClipDiagramPin,
+        listDeliverables,
+        createDeliverable,
       };
     }),
   }

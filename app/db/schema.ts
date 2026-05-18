@@ -4,6 +4,7 @@ import {
   boolean,
   check,
   customType,
+  date,
   doublePrecision,
   integer,
   jsonb,
@@ -467,6 +468,30 @@ export const thumbnailsRelations = relations(thumbnails, ({ one }) => ({
     references: [videos.id],
   }),
 }));
+
+export const deliverables = createTable("deliverable", {
+  id: varchar("id", { length: 255 })
+    .notNull()
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  title: text("title").notNull(),
+  notes: text("notes"),
+  date: date("date", { mode: "string" }).notNull(),
+  status: text("status").notNull().default("planned"),
+  archived: boolean("archived").notNull().default(false),
+  createdAt: timestamp("created_at", {
+    mode: "date",
+    withTimezone: true,
+  })
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at", {
+    mode: "date",
+    withTimezone: true,
+  })
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+});
 
 // export const chats = createTable("chat", {
 //   id: varchar("id", { length: 255 })
