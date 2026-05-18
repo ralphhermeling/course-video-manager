@@ -154,6 +154,7 @@ export class DBFunctionsService extends Effect.Service<DBFunctionsService>()(
         createDeliverable,
         updateDeliverableStatus,
         updateDeliverable,
+        duplicateDeliverable,
         archiveDeliverable,
       } = createDeliverableOperations(db);
 
@@ -298,6 +299,7 @@ export class DBFunctionsService extends Effect.Service<DBFunctionsService>()(
         createDeliverable,
         updateDeliverableStatus,
         updateDeliverable,
+        duplicateDeliverable,
         archiveDeliverable,
       };
     }),

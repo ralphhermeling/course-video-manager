@@ -175,6 +175,50 @@ export const createDeliverableOperations = (db: DrizzleDB) => {
     return deliverable;
   });
 
+  const duplicateDeliverable = Effect.fn("duplicateDeliverable")(function* (
+    id: string
+  ) {
+    const existing = yield* makeDbCall(() =>
+      db.query.deliverables.findFirst({
+        where: eq(deliverables.id, id),
+      })
+    );
+
+    if (!existing) {
+      return yield* new UnknownDBServiceError({
+        cause: "Deliverable not found",
+      });
+    }
+
+    const [y, m, d] = existing.date.split("-").map(Number);
+    const dt = new Date(y!, m! - 1, d!);
+    dt.setDate(dt.getDate() + 7);
+    const yy = dt.getFullYear();
+    const mm = String(dt.getMonth() + 1).padStart(2, "0");
+    const dd = String(dt.getDate()).padStart(2, "0");
+    const newDate = `${yy}-${mm}-${dd}`;
+
+    const inserted = yield* makeDbCall(() =>
+      db
+        .insert(deliverables)
+        .values({
+          title: existing.title,
+          date: newDate,
+          notes: existing.notes,
+        })
+        .returning()
+    );
+
+    const created = inserted[0];
+    if (!created) {
+      return yield* new UnknownDBServiceError({
+        cause: "No deliverable was returned from the database",
+      });
+    }
+
+    return { created };
+  });
+
   const archiveDeliverable = Effect.fn("archiveDeliverable")(function* (
     id: string
   ) {
@@ -202,6 +246,7 @@ export const createDeliverableOperations = (db: DrizzleDB) => {
     createDeliverable,
     updateDeliverableStatus,
     updateDeliverable,
+    duplicateDeliverable,
     archiveDeliverable,
   };
 };

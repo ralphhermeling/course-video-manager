@@ -111,12 +111,31 @@ describe("groupDeliverables", () => {
     expect(result.pastHistory).toHaveLength(0);
   });
 
-  it("includes current week even when all items are in other weeks", () => {
+  it("fills at least minWeeksAhead future weeks even when no items exist", () => {
+    const result = groupDeliverables([], today, { minWeeksAhead: 11 });
+    expect(result.weekGroups).toHaveLength(12);
+    expect(result.weekGroups[0]!.week).toBe(21);
+    expect(result.weekGroups[11]!.week).toBe(32);
+    expect(result.weekGroups.every((g) => g.items.length === 0)).toBe(true);
+  });
+
+  it("extends past minWeeksAhead when items reach further", () => {
+    const items = [
+      makeDeliverable({ date: "2026-09-01", title: "Far future" }),
+    ];
+    const result = groupDeliverables(items, today, { minWeeksAhead: 4 });
+    // 2026-09-01 = ISO week 36; should fill from 21 through 36
+    expect(result.weekGroups[0]!.week).toBe(21);
+    expect(result.weekGroups[result.weekGroups.length - 1]!.week).toBe(36);
+  });
+
+  it("includes current week and fills empty weeks up to the latest scheduled deliverable", () => {
     const items = [makeDeliverable({ date: "2026-06-01", title: "Future" })];
     const result = groupDeliverables(items, today);
-    expect(result.weekGroups[0]!.week).toBe(21);
+    expect(result.weekGroups.map((g) => g.week)).toEqual([21, 22, 23]);
     expect(result.weekGroups[0]!.items).toEqual([]);
-    expect(result.weekGroups[1]!.week).toBe(23);
+    expect(result.weekGroups[1]!.items).toEqual([]);
+    expect(result.weekGroups[2]!.items.map((i) => i.title)).toEqual(["Future"]);
   });
 
   it("handles multiple items on the same day sorted by createdAt", () => {

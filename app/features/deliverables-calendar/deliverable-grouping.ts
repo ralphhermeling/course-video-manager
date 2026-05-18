@@ -40,7 +40,8 @@ function formatDate(d: Date): string {
 
 export function groupDeliverables<T extends DeliverableForGrouping>(
   deliverables: T[],
-  today: Date
+  today: Date,
+  options: { minWeeksAhead?: number } = {}
 ): GroupedDeliverables<T> {
   const active = deliverables.filter((d) => !d.archived);
   const todayStr = formatDate(today);
@@ -97,9 +98,46 @@ export function groupDeliverables<T extends DeliverableForGrouping>(
     }
   }
 
+  let maxWeekStart: Date | null = null;
+  for (const d of sorted) {
+    const dt = parseDate(d.date);
+    const ws = mondayOf(dt);
+    if (!maxWeekStart || ws.getTime() > maxWeekStart.getTime()) {
+      maxWeekStart = ws;
+    }
+  }
+
+  const todayWeekStart = mondayOf(today);
+  const minWeeksAhead = options.minWeeksAhead ?? 0;
+  const minFillEnd = new Date(todayWeekStart);
+  minFillEnd.setDate(minFillEnd.getDate() + minWeeksAhead * 7);
+  const fillUntil =
+    maxWeekStart && maxWeekStart.getTime() > minFillEnd.getTime()
+      ? maxWeekStart
+      : minFillEnd;
+  if (fillUntil.getTime() > todayWeekStart.getTime()) {
+    const cursor = new Date(todayWeekStart);
+    cursor.setDate(cursor.getDate() + 7);
+    while (cursor.getTime() <= fillUntil.getTime()) {
+      const { week, year } = isoWeek(cursor);
+      const key = weekKey(week, year);
+      if (!byWeek.has(key)) {
+        byWeek.set(key, { week, year, items: [] as T[], overdueCount: 0 });
+      }
+      cursor.setDate(cursor.getDate() + 7);
+    }
+  }
+
   const weekGroups = [...byWeek.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([, group]) => group);
 
   return { pastHistory, weekGroups };
+}
+
+function mondayOf(d: Date): Date {
+  const out = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const dayNr = (out.getDay() + 6) % 7;
+  out.setDate(out.getDate() - dayNr);
+  return out;
 }

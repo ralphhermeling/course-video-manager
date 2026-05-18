@@ -1,28 +1,33 @@
 import { AppSidebar } from "@/components/app-sidebar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import {
+  DeliverableCard,
+  type DeliverableForCard,
+} from "@/features/deliverables-calendar/deliverable-card";
+import {
+  DeliverableForm,
+  type CourseOption,
+  type PitchOption,
+} from "@/features/deliverables-calendar/deliverable-form";
+import { WeekActionsMenu } from "@/features/deliverables-calendar/week-actions-menu";
 import {
   groupDeliverables,
   type DeliverableForGrouping,
 } from "@/features/deliverables-calendar/deliverable-grouping";
 import { isoWeek } from "@/features/deliverables-calendar/iso-week";
+import type { PitchStatus } from "@/components/status-icon-badge";
 import { DBFunctionsService } from "@/services/db-service.server";
 import { runtimeLive } from "@/services/layer.server";
 import { Console, Effect } from "effect";
 import {
-  AlertTriangleIcon,
-  ArchiveIcon,
-  CheckIcon,
   ChevronDownIcon,
   ChevronRightIcon,
   CircleIcon,
-  PencilIcon,
   Plus,
-  XIcon,
 } from "lucide-react";
 import { useState } from "react";
-import { data, useFetcher, useLoaderData } from "react-router";
+import { data, useLoaderData } from "react-router";
 import type { Route } from "./+types/deliverables._index";
 
 export const meta: Route.MetaFunction = () => {
@@ -45,7 +50,12 @@ export const loader = async () => {
       );
 
     const courseMap = new Map(courses.map((c) => [c.id, c.name]));
-    const pitchMap = new Map(pitches.map((p) => [p.id, p.title]));
+    const pitchMap = new Map(
+      pitches.map((p) => [
+        p.id,
+        { title: p.title, priority: p.priority, status: p.status },
+      ])
+    );
 
     return {
       deliverables: deliverables.map((d) => ({
@@ -60,14 +70,23 @@ export const loader = async () => {
           id: dc.courseId,
           name: courseMap.get(dc.courseId) ?? dc.courseId,
         })),
-        linkedPitches: d.deliverablesPitches.map((dp) => ({
-          id: dp.pitchId,
-          title: pitchMap.get(dp.pitchId) ?? dp.pitchId,
-        })),
+        linkedPitches: d.deliverablesPitches.map((dp) => {
+          const p = pitchMap.get(dp.pitchId);
+          return {
+            id: dp.pitchId,
+            title: p?.title ?? dp.pitchId,
+            priority: p?.priority ?? 999,
+          };
+        }),
       })),
       courses: courses.map((c) => ({ id: c.id, name: c.name })),
       sidebarVideos: sidebarVideos.map((v) => ({ id: v.id, path: v.path })),
-      pitches: pitches.map((p) => ({ id: p.id, title: p.title })),
+      pitches: pitches.map((p) => ({
+        id: p.id,
+        title: p.title,
+        priority: p.priority,
+        status: p.status as PitchStatus,
+      })),
       diagrams: diagrams.map((d) => ({ id: d.id, name: d.name })),
     };
   }).pipe(
@@ -79,24 +98,14 @@ export const loader = async () => {
   );
 };
 
-interface LinkedCourse {
-  id: string;
-  name: string;
-}
+type DeliverableWithLinks = DeliverableForGrouping & DeliverableForCard;
 
-interface LinkedPitch {
-  id: string;
-  title: string;
-}
-
-interface DeliverableWithLinks extends DeliverableForGrouping {
-  linkedCourses: LinkedCourse[];
-  linkedPitches: LinkedPitch[];
-}
-
-function parseDate(s: string): Date {
-  const [y, m, d] = s.split("-").map(Number);
-  return new Date(y!, m! - 1, d!);
+function isoWeekStart(week: number, year: number): Date {
+  const jan4 = new Date(year, 0, 4);
+  const dayNr = (jan4.getDay() + 6) % 7;
+  const week1Monday = new Date(year, 0, 4 - dayNr);
+  week1Monday.setDate(week1Monday.getDate() + (week - 1) * 7);
+  return week1Monday;
 }
 
 function formatDateStr(d: Date): string {
@@ -104,389 +113,6 @@ function formatDateStr(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
-}
-
-function StatusFlipButton({
-  deliverableId,
-  currentStatus,
-  targetStatus,
-  children,
-}: {
-  deliverableId: string;
-  currentStatus: string;
-  targetStatus: string;
-  children: React.ReactNode;
-}) {
-  const fetcher = useFetcher();
-  if (currentStatus === targetStatus) return null;
-  return (
-    <fetcher.Form
-      method="post"
-      action={`/api/deliverables/${deliverableId}/update-status`}
-      className="inline"
-    >
-      <input type="hidden" name="status" value={targetStatus} />
-      <button
-        type="submit"
-        className="p-0.5 rounded hover:bg-muted transition-colors"
-        title={`Mark as ${targetStatus}`}
-      >
-        {children}
-      </button>
-    </fetcher.Form>
-  );
-}
-
-function ArchiveButton({ deliverableId }: { deliverableId: string }) {
-  const fetcher = useFetcher();
-  return (
-    <fetcher.Form
-      method="post"
-      action={`/api/deliverables/${deliverableId}/archive`}
-      className="inline"
-    >
-      <button
-        type="submit"
-        className="p-0.5 rounded hover:bg-muted transition-colors"
-        title="Archive"
-      >
-        <ArchiveIcon className="size-3.5 text-muted-foreground hover:text-foreground" />
-      </button>
-    </fetcher.Form>
-  );
-}
-
-function LinkMultiSelect({
-  name,
-  label,
-  options,
-  defaultSelected,
-}: {
-  name: string;
-  label: string;
-  options: { id: string; label: string }[];
-  defaultSelected: string[];
-}) {
-  const [selected, setSelected] = useState<Set<string>>(
-    new Set(defaultSelected)
-  );
-
-  if (options.length === 0) return null;
-
-  return (
-    <div>
-      <label className="text-xs text-muted-foreground">{label}</label>
-      <div className="flex flex-wrap gap-1.5 mt-1">
-        {options.map((opt) => {
-          const isSelected = selected.has(opt.id);
-          return (
-            <button
-              key={opt.id}
-              type="button"
-              onClick={() => {
-                setSelected((prev) => {
-                  const next = new Set(prev);
-                  if (next.has(opt.id)) next.delete(opt.id);
-                  else next.add(opt.id);
-                  return next;
-                });
-              }}
-              className={cn(
-                "inline-flex items-center rounded-md border px-2 py-0.5 text-xs transition-colors",
-                isSelected
-                  ? "border-foreground/30 bg-foreground/10 text-foreground"
-                  : "border-border text-muted-foreground hover:border-foreground/20"
-              )}
-            >
-              {opt.label}
-            </button>
-          );
-        })}
-      </div>
-      {Array.from(selected).map((id) => (
-        <input key={id} type="hidden" name={name} value={id} />
-      ))}
-    </div>
-  );
-}
-
-function EditDeliverableForm({
-  d,
-  onClose,
-  allCourses,
-  allPitches,
-}: {
-  d: DeliverableWithLinks;
-  onClose: () => void;
-  allCourses: { id: string; name: string }[];
-  allPitches: { id: string; title: string }[];
-}) {
-  const fetcher = useFetcher();
-  const isSubmitting = fetcher.state !== "idle";
-
-  return (
-    <li>
-      <fetcher.Form
-        method="post"
-        action={`/api/deliverables/${d.id}/update`}
-        className="rounded-md border border-border p-3 bg-background space-y-3"
-        onSubmit={() => {
-          setTimeout(() => onClose(), 0);
-        }}
-      >
-        <div className="space-y-2">
-          <input
-            name="title"
-            type="text"
-            required
-            defaultValue={d.title}
-            placeholder="Title"
-            className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-            autoFocus
-          />
-          <input
-            name="date"
-            type="date"
-            required
-            defaultValue={d.date}
-            className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-          />
-          <textarea
-            name="notes"
-            placeholder="Notes (optional)"
-            rows={2}
-            defaultValue={d.notes ?? ""}
-            className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring resize-none"
-          />
-          <input type="hidden" name="status" value={d.status} />
-          <LinkMultiSelect
-            name="courseIds"
-            label="Courses"
-            options={allCourses.map((c) => ({ id: c.id, label: c.name }))}
-            defaultSelected={d.linkedCourses.map((c) => c.id)}
-          />
-          <LinkMultiSelect
-            name="pitchIds"
-            label="Pitches"
-            options={allPitches.map((p) => ({ id: p.id, label: p.title }))}
-            defaultSelected={d.linkedPitches.map((p) => p.id)}
-          />
-        </div>
-        <div className="flex gap-2 justify-end">
-          <Button type="button" variant="ghost" size="sm" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" size="sm" disabled={isSubmitting}>
-            {isSubmitting ? "Saving…" : "Save"}
-          </Button>
-        </div>
-      </fetcher.Form>
-    </li>
-  );
-}
-
-function DeliverableRow({
-  d,
-  todayStr,
-  allCourses,
-  allPitches,
-}: {
-  d: DeliverableWithLinks;
-  todayStr: string;
-  allCourses: { id: string; name: string }[];
-  allPitches: { id: string; title: string }[];
-}) {
-  const [editing, setEditing] = useState(false);
-  const day = parseDate(d.date);
-  const overdue = d.status === "planned" && d.date < todayStr;
-  const cancelled = d.status === "cancelled";
-  const done = d.status === "done";
-  const hasLinks = d.linkedCourses.length > 0 || d.linkedPitches.length > 0;
-
-  if (editing) {
-    return (
-      <EditDeliverableForm
-        d={d}
-        onClose={() => setEditing(false)}
-        allCourses={allCourses}
-        allPitches={allPitches}
-      />
-    );
-  }
-
-  return (
-    <li
-      className={cn(
-        "flex items-start gap-3 rounded-md border p-2.5 bg-background",
-        overdue ? "border-red-500/50 bg-red-500/5" : "border-border",
-        cancelled && "opacity-50"
-      )}
-    >
-      <div className="w-12 shrink-0 text-center">
-        <div className="text-[10px] uppercase text-muted-foreground">
-          {day.toLocaleDateString(undefined, { weekday: "short" })}
-        </div>
-        <div
-          className={cn(
-            "text-lg leading-none font-medium tabular-nums",
-            overdue && "text-red-400"
-          )}
-        >
-          {day.getDate()}
-        </div>
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          {overdue && (
-            <AlertTriangleIcon className="size-3.5 text-red-400 shrink-0" />
-          )}
-          {done && (
-            <CheckIcon className="size-3.5 text-muted-foreground shrink-0" />
-          )}
-          {cancelled && (
-            <XIcon className="size-3.5 text-muted-foreground shrink-0" />
-          )}
-          <span
-            className={cn(
-              "text-sm",
-              overdue && "text-red-200 font-medium",
-              done && "text-muted-foreground",
-              cancelled && "line-through text-muted-foreground"
-            )}
-          >
-            {d.title}
-          </span>
-        </div>
-        {d.notes && (
-          <p className="text-xs text-muted-foreground mt-0.5">{d.notes}</p>
-        )}
-        {hasLinks && (
-          <div className="flex flex-wrap gap-1 mt-1">
-            {d.linkedCourses.map((c) => (
-              <Badge
-                key={c.id}
-                variant="outline"
-                className="text-[10px] py-0 px-1.5"
-              >
-                {c.name}
-              </Badge>
-            ))}
-            {d.linkedPitches.map((p) => (
-              <Badge
-                key={p.id}
-                variant="outline"
-                className="text-[10px] py-0 px-1.5"
-              >
-                {p.title}
-              </Badge>
-            ))}
-          </div>
-        )}
-      </div>
-      <div className="flex items-center gap-1 shrink-0">
-        <button
-          type="button"
-          onClick={() => setEditing(true)}
-          className="p-0.5 rounded hover:bg-muted transition-colors"
-          title="Edit"
-        >
-          <PencilIcon className="size-3.5 text-muted-foreground hover:text-foreground" />
-        </button>
-        <StatusFlipButton
-          deliverableId={d.id}
-          currentStatus={d.status}
-          targetStatus="done"
-        >
-          <CheckIcon className="size-3.5 text-muted-foreground hover:text-foreground" />
-        </StatusFlipButton>
-        <StatusFlipButton
-          deliverableId={d.id}
-          currentStatus={d.status}
-          targetStatus="cancelled"
-        >
-          <XIcon className="size-3.5 text-muted-foreground hover:text-foreground" />
-        </StatusFlipButton>
-        {(done || cancelled) && (
-          <StatusFlipButton
-            deliverableId={d.id}
-            currentStatus={d.status}
-            targetStatus="planned"
-          >
-            <CircleIcon className="size-3 text-muted-foreground hover:text-foreground" />
-          </StatusFlipButton>
-        )}
-        <ArchiveButton deliverableId={d.id} />
-      </div>
-    </li>
-  );
-}
-
-function CreateDeliverableForm({
-  onClose,
-  allCourses,
-  allPitches,
-}: {
-  onClose: () => void;
-  allCourses: { id: string; name: string }[];
-  allPitches: { id: string; title: string }[];
-}) {
-  const fetcher = useFetcher();
-  const isSubmitting = fetcher.state !== "idle";
-
-  return (
-    <fetcher.Form
-      method="post"
-      action="/api/deliverables/create"
-      className="rounded-md border border-border p-3 bg-background space-y-3"
-      onSubmit={() => {
-        setTimeout(() => onClose(), 0);
-      }}
-    >
-      <div className="space-y-2">
-        <input
-          name="title"
-          type="text"
-          required
-          placeholder="Title"
-          className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-          autoFocus
-        />
-        <input
-          name="date"
-          type="date"
-          required
-          defaultValue={new Date().toISOString().split("T")[0]}
-          className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-        />
-        <textarea
-          name="notes"
-          placeholder="Notes (optional)"
-          rows={2}
-          className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring resize-none"
-        />
-        <LinkMultiSelect
-          name="courseIds"
-          label="Courses"
-          options={allCourses.map((c) => ({ id: c.id, label: c.name }))}
-          defaultSelected={[]}
-        />
-        <LinkMultiSelect
-          name="pitchIds"
-          label="Pitches"
-          options={allPitches.map((p) => ({ id: p.id, label: p.title }))}
-          defaultSelected={[]}
-        />
-      </div>
-      <div className="flex gap-2 justify-end">
-        <Button type="button" variant="ghost" size="sm" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button type="submit" size="sm" disabled={isSubmitting}>
-          {isSubmitting ? "Creating…" : "Create"}
-        </Button>
-      </div>
-    </fetcher.Form>
-  );
 }
 
 function HistoryDisclosure({
@@ -497,18 +123,17 @@ function HistoryDisclosure({
 }: {
   items: DeliverableWithLinks[];
   todayStr: string;
-  allCourses: { id: string; name: string }[];
-  allPitches: { id: string; title: string }[];
+  allCourses: CourseOption[];
+  allPitches: PitchOption[];
 }) {
   const [open, setOpen] = useState(false);
-
   if (items.length === 0) return null;
-
   return (
     <div className="mb-5">
       <button
         onClick={() => setOpen((v) => !v)}
         className="w-full text-left text-xs text-muted-foreground hover:text-foreground flex items-center gap-1.5 py-2 border-b border-border"
+        aria-expanded={open}
       >
         {open ? (
           <ChevronDownIcon className="size-3" />
@@ -518,9 +143,9 @@ function HistoryDisclosure({
         {items.length} earlier — shipped &amp; cancelled
       </button>
       {open && (
-        <ul className="space-y-1.5 mt-2">
+        <ul className="space-y-2 mt-2">
           {items.map((d) => (
-            <DeliverableRow
+            <DeliverableCard
               key={d.id}
               d={d}
               todayStr={todayStr}
@@ -537,7 +162,9 @@ function HistoryDisclosure({
 export default function DeliverablesCalendarPage() {
   const { deliverables, courses, sidebarVideos, pitches, diagrams } =
     useLoaderData<typeof loader>();
-  const [showForm, setShowForm] = useState(false);
+  const [createForm, setCreateForm] = useState<
+    { kind: "top" } | { kind: "week"; mondayStr: string } | null
+  >(null);
 
   const today = new Date();
   const todayWeek = isoWeek(today);
@@ -552,7 +179,8 @@ export default function DeliverablesCalendarPage() {
 
   const { pastHistory, weekGroups } = groupDeliverables(
     deliverablesWithLinks,
-    today
+    today,
+    { minWeeksAhead: 11 }
   );
 
   return (
@@ -571,17 +199,23 @@ export default function DeliverablesCalendarPage() {
             Week {todayWeek.week}
           </span>
           <div className="flex-1" />
-          <Button variant="outline" size="sm" onClick={() => setShowForm(true)}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              setCreateForm((v) => (v?.kind === "top" ? null : { kind: "top" }))
+            }
+          >
             <Plus className="size-3.5 mr-1.5" />
             New Deliverable
           </Button>
         </div>
 
-        <div className="p-6 max-w-2xl mx-auto w-full">
-          {showForm && (
+        <div className="p-6 max-w-3xl mx-auto w-full">
+          {createForm?.kind === "top" && (
             <div className="mb-5">
-              <CreateDeliverableForm
-                onClose={() => setShowForm(false)}
+              <DeliverableForm
+                onClose={() => setCreateForm(null)}
                 allCourses={courses}
                 allPitches={pitches}
               />
@@ -595,10 +229,14 @@ export default function DeliverablesCalendarPage() {
             allPitches={pitches}
           />
 
-          <div className="space-y-5">
+          <div className="space-y-8">
             {weekGroups.map((g) => {
               const isThisWeek =
                 g.week === todayWeek.week && g.year === todayWeek.year;
+              const mondayStr = formatDateStr(isoWeekStart(g.week, g.year));
+              const showWeekForm =
+                createForm?.kind === "week" &&
+                createForm.mondayStr === mondayStr;
               return (
                 <section key={`${g.year}-${g.week}`}>
                   <header className="flex items-center gap-3 mb-2">
@@ -614,13 +252,24 @@ export default function DeliverablesCalendarPage() {
                       )}
                     >
                       Week {g.week}
-                      {isThisWeek && " · this week"}
+                      {isThisWeek
+                        ? " · this week"
+                        : ` · ${isoWeekStart(g.week, g.year).toLocaleDateString(
+                            undefined,
+                            { month: "short", day: "numeric" }
+                          )}`}
                     </h3>
                     {g.overdueCount > 0 && (
-                      <span className="text-[10px] text-red-400">
+                      <span className="text-[10px] text-red-600 dark:text-red-400">
                         {g.overdueCount} overdue
                       </span>
                     )}
+                    <WeekActionsMenu
+                      items={g.items}
+                      onAddNew={() =>
+                        setCreateForm({ kind: "week", mondayStr })
+                      }
+                    />
                     <div
                       className={cn(
                         "h-px flex-1",
@@ -628,10 +277,20 @@ export default function DeliverablesCalendarPage() {
                       )}
                     />
                   </header>
+                  {showWeekForm && (
+                    <div className="mb-2">
+                      <DeliverableForm
+                        initialDate={mondayStr}
+                        onClose={() => setCreateForm(null)}
+                        allCourses={courses}
+                        allPitches={pitches}
+                      />
+                    </div>
+                  )}
                   {g.items.length > 0 ? (
-                    <ul className="space-y-1.5">
+                    <ul className="space-y-2">
                       {g.items.map((d) => (
-                        <DeliverableRow
+                        <DeliverableCard
                           key={d.id}
                           d={d}
                           todayStr={todayStr}
@@ -641,9 +300,11 @@ export default function DeliverablesCalendarPage() {
                       ))}
                     </ul>
                   ) : (
-                    <p className="text-xs text-muted-foreground italic pl-5">
-                      No deliverables this week
-                    </p>
+                    !showWeekForm && (
+                      <p className="text-xs text-muted-foreground italic pl-5">
+                        No deliverables
+                      </p>
+                    )
                   )}
                 </section>
               );
