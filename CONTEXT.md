@@ -165,7 +165,7 @@ _Avoid_: Idea, Concept, Draft (overloaded with Draft Version)
 A manual marker on a Pitch with five values, all user-set (none derived from linked Videos):
 
 - `idle` (default) — drafting / mulling; not yet committed to making the video
-- `scheduled` — queued in the external delivery calendar (Google Doc); not yet scheduled inside YouTube itself
+- `scheduled` — queued for delivery (typically linked from the **Deliverables Calendar**, set manually); not yet scheduled inside YouTube itself
 - `shipped-to-youtube` — uploaded to YouTube and queued in YouTube's own scheduler; awaiting go-live and remaining channels (newsletter, tweet)
 - `shipped` — fully delivered across channels; the Pitch is done
 - `cancelled` — decided not to make this video; sideways off-ramp from any other state, reversible by flipping back to `idle`
@@ -210,6 +210,20 @@ _Avoid_: Manual snapshot, Saved snapshot, Standalone snapshot, Bookmark
 **Skills Changelog**:
 A published AI Hero entity that bundles an article and a Kit newsletter draft for a single **Video**. Created via `POST /api/skills/changelog`; publishes immediately (`state: "published"`) and triggers the Inngest `skill-changelog/published` event, which creates a Kit newsletter draft (template `5176054`, from `matt@aihero.dev`) — drafts only, never sends. The newsletter is required; the article and newsletter fields are authored together on a single page. Public page at `https://www.aihero.dev/skills/<slug>`; newsletter copy includes a hardcoded footer linking back to that page.
 _Avoid_: Changelog (ambiguous with course publish changelog), Skill post, Changelog entry
+
+### Deliverables and scheduling
+
+**Deliverable**:
+A manually-authored entry on the **Deliverables Calendar**, pinned to a single all-day date. May link to zero or more **Courses** and/or **Pitches**; links are informational only, never derived.
+_Avoid_: Task, Item, Scheduled work, Ship target
+
+**Deliverable Status**:
+A manual marker on a **Deliverable**: `planned` (default), `done`, or `cancelled`. All transitions reversible; never derived from linked entities. Distinct from **Archive** — `cancelled` Deliverables stay on the calendar; archiving is what hides them.
+_Avoid_: Completion, Deliverable state
+
+**Deliverables Calendar**:
+The in-app view of all **Deliverables** across past and future dates, used for both forward planning and inventory.
+_Avoid_: Delivery calendar, Schedule, Roadmap, Content calendar
 
 ### Ordering and lifecycle
 
