@@ -6,7 +6,7 @@ set -eo pipefail
 # ============================================================
 #
 # This script walks you through setting up the two secrets
-# needed for the claude-work.yml workflow.
+# needed for the agent-implement.yml workflow.
 #
 # Secrets required:
 #
