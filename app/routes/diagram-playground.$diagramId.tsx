@@ -1,21 +1,8 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { Tldraw, getSnapshot, loadSnapshot, type Editor } from "tldraw";
 import "tldraw/tldraw.css";
-import {
-  AlertTriangle,
-  ArrowLeft,
-  Copy,
-  Link2,
-  Pin,
-  Plus,
-  Save,
-  Trash2,
-} from "lucide-react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { ArrowLeft, Copy, Plus, Save, Trash2 } from "lucide-react";
+import { ConnectionStatusIndicator } from "@/features/diagrams/connection-status-indicator";
 import { toast } from "sonner";
 import {
   subscribeChild,
@@ -33,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { DiagramThumbnail } from "@/features/diagrams/diagram-thumbnail";
 import { renderThumbnailPngBase64 } from "@/features/diagrams/render-thumbnail";
+import { usePreserveSnapshotShortcut } from "@/features/diagrams/preserve-snapshot-shortcut";
 import { EditableDiagramName } from "@/features/diagrams/editable-diagram-name";
 import { copySceneToClipboard } from "@/features/diagrams/copy-scene-to-clipboard";
 import {
@@ -214,6 +202,8 @@ export default function DiagramPlaygroundActive({
       setPreserving(false);
     }
   }, [saveHead]);
+
+  usePreserveSnapshotShortcut(diagramId ? preserveSnapshot : null);
 
   // Emit activeDiagramChanged on mount
   useEffect(() => {
@@ -535,48 +525,10 @@ export default function DiagramPlaygroundActive({
             <Save className="h-4 w-4" />
           </button>
         )}
-        {(() => {
-          const status: "disconnected" | "connected" | "pinning" =
-            !editorConnected
-              ? "disconnected"
-              : windowFocused
-                ? "pinning"
-                : "connected";
-          const label =
-            status === "disconnected"
-              ? "Not connected to a video editor"
-              : status === "pinning"
-                ? "Diagram focused — snapshots will pin to clips ending now"
-                : "Connected to video editor — focus this window to pin snapshots";
-          const Icon =
-            status === "disconnected"
-              ? AlertTriangle
-              : status === "pinning"
-                ? Pin
-                : Link2;
-          const palette =
-            status === "disconnected"
-              ? "bg-amber-900/80 text-amber-300"
-              : status === "pinning"
-                ? "bg-emerald-700/80 text-emerald-100"
-                : "bg-zinc-700/80 text-zinc-300";
-          return (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div
-                  aria-label={label}
-                  className={
-                    "absolute bottom-28 right-2 z-50 flex h-9 w-9 items-center justify-center rounded-full shadow " +
-                    palette
-                  }
-                >
-                  <Icon className="h-4 w-4" />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="left">{label}</TooltipContent>
-            </Tooltip>
-          );
-        })()}
+        <ConnectionStatusIndicator
+          editorConnected={editorConnected}
+          windowFocused={windowFocused}
+        />
       </div>
       {!isFocusMode && (
         <div className="flex w-64 shrink-0 flex-col border-l border-zinc-700 bg-zinc-900">
