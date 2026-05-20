@@ -30,11 +30,14 @@ export function ConnectionStatusIndicator({
   editorConnected: boolean;
   windowFocused: boolean;
 }) {
-  const status: "disconnected" | "connected" | "pinning" = !editorConnected
-    ? "disconnected"
-    : windowFocused
-      ? "pinning"
-      : "connected";
+  let status: "disconnected" | "connected" | "pinning";
+  if (!editorConnected) {
+    status = "disconnected";
+  } else if (windowFocused) {
+    status = "pinning";
+  } else {
+    status = "connected";
+  }
   const { label, Icon, palette } = statusConfig[status];
   return (
     <Tooltip>

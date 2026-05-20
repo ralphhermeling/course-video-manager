@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 
-export function isPreserveSnapshotShortcut(e: {
+function isPreserveSnapshotShortcut(e: {
   ctrlKey: boolean;
   metaKey: boolean;
   key: string;
