@@ -16,7 +16,11 @@ const PromptOutput = z.object({
 
 const result = await sandcastle.run({
   name: `implement-#${ISSUE_NUMBER}`,
-  agent: sandcastle.claudeCode("claude-opus-4-6"),
+  agent: sandcastle.claudeCode("claude-opus-4-6", {
+    env: {
+      CLAUDE_CODE_OAUTH_TOKEN: required("CLAUDE_CODE_OAUTH_TOKEN"),
+    },
+  }),
   sandbox: noSandbox(),
   logging: { type: "stdout" },
   promptFile: path.join(import.meta.dirname, "prompt.md"),
