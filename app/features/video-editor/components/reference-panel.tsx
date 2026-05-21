@@ -56,7 +56,7 @@ export type ReferenceCandidate = {
     text: string;
     transcribedAt: Date | null;
   }>;
-  clipSections: Array<{ id: string; order: string; name: string }>;
+  chapters: Array<{ id: string; order: string; name: string }>;
 };
 
 type GroupItem =
@@ -68,9 +68,9 @@ type Group = {
   clips: Array<{ id: string; text: string }>;
 };
 
-const groupByClipSection = (candidate: ReferenceCandidate): Group[] => {
+const groupByChapter = (candidate: ReferenceCandidate): Group[] => {
   const items: Array<GroupItem & { order: string }> = [
-    ...candidate.clipSections.map((s) => ({
+    ...candidate.chapters.map((s) => ({
       kind: "section" as const,
       order: s.order,
       id: s.id,
@@ -106,27 +106,27 @@ type ModalState =
   | {
       mode: "add-at";
       targetItemId: string;
-      targetItemType: "clip" | "clip-section";
+      targetItemType: "clip" | "chapter";
       position: "before" | "after";
       defaultName: string;
     }
-  | { mode: "edit"; clipSectionId: string; currentName: string }
+  | { mode: "edit"; chapterId: string; currentName: string }
   | null;
 
 export const ReferencePanel = (props: {
   candidates: ReferenceCandidate[];
   selectedId: string;
   onRemove: () => void;
-  onAddSectionAt: (input: {
+  onAddChapterAt: (input: {
     videoId: string;
     targetItemId: string;
-    targetItemType: "clip" | "clip-section";
+    targetItemType: "clip" | "chapter";
     position: "before" | "after";
     name: string;
   }) => void;
-  onEditSectionName: (clipSectionId: string, name: string) => void;
-  onDeleteSection: (clipSectionId: string) => void;
-  onGenerateClipSections: () => void;
+  onEditChapterName: (chapterId: string, name: string) => void;
+  onDeleteChapter: (chapterId: string) => void;
+  onGenerateChapters: () => void;
   className?: string;
 }) => {
   const selected =
@@ -148,24 +148,24 @@ export const ReferencePanel = (props: {
     );
   }, [collapsed]);
 
-  const toggleCollapsed = (sectionId: string) =>
-    setCollapsed((prev) => ({ ...prev, [sectionId]: !prev[sectionId] }));
+  const toggleCollapsed = (chapterId: string) =>
+    setCollapsed((prev) => ({ ...prev, [chapterId]: !prev[chapterId] }));
 
   if (!selected) return null;
 
-  const groups = groupByClipSection(selected);
-  const sectionIds = selected.clipSections.map((s) => s.id);
+  const groups = groupByChapter(selected);
+  const chapterIds = selected.chapters.map((s) => s.id);
   const allCollapsed =
-    sectionIds.length > 0 && sectionIds.every((id) => collapsed[id]);
+    chapterIds.length > 0 && chapterIds.every((id) => collapsed[id]);
   const toggleAll = () => {
     setCollapsed((prev) => {
       const next = { ...prev };
-      for (const id of sectionIds) next[id] = !allCollapsed;
+      for (const id of chapterIds) next[id] = !allCollapsed;
       return next;
     });
   };
 
-  const defaultSectionName = `Section ${selected.clipSections.length + 1}`;
+  const defaultChapterName = `Chapter ${selected.chapters.length + 1}`;
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -174,7 +174,7 @@ export const ReferencePanel = (props: {
     const name = (formData.get("name") as string).trim();
     if (!name) return;
     if (modal.mode === "add-at") {
-      props.onAddSectionAt({
+      props.onAddChapterAt({
         videoId: selected.id,
         targetItemId: modal.targetItemId,
         targetItemType: modal.targetItemType,
@@ -182,7 +182,7 @@ export const ReferencePanel = (props: {
         name,
       });
     } else {
-      props.onEditSectionName(modal.clipSectionId, name);
+      props.onEditChapterName(modal.chapterId, name);
     }
     setModal(null);
   };
@@ -211,9 +211,9 @@ export const ReferencePanel = (props: {
                 variant="ghost"
                 size="sm"
                 className="size-6 p-0"
-                onClick={props.onGenerateClipSections}
+                onClick={props.onGenerateChapters}
                 disabled={!allTranscribed}
-                aria-label="Generate Sections with AI"
+                aria-label="Generate Chapters with AI"
               >
                 <Sparkles className="size-3" />
               </Button>
@@ -236,7 +236,7 @@ export const ReferencePanel = (props: {
             size="sm"
             className="size-6 p-0"
             onClick={toggleAll}
-            disabled={sectionIds.length === 0}
+            disabled={chapterIds.length === 0}
             aria-label={
               allCollapsed ? "Expand all sections" : "Collapse all sections"
             }
@@ -282,7 +282,7 @@ export const ReferencePanel = (props: {
                     onSelect={() =>
                       setModal({
                         mode: "edit",
-                        clipSectionId: group.section!.id,
+                        chapterId: group.section!.id,
                         currentName: group.section!.name,
                       })
                     }
@@ -296,33 +296,33 @@ export const ReferencePanel = (props: {
                       setModal({
                         mode: "add-at",
                         targetItemId: group.section!.id,
-                        targetItemType: "clip-section",
+                        targetItemType: "chapter",
                         position: "before",
-                        defaultName: defaultSectionName,
+                        defaultName: defaultChapterName,
                       })
                     }
                   >
                     <PlusIcon />
-                    Add Section Before
+                    Add Chapter Before
                   </ContextMenuItem>
                   <ContextMenuItem
                     onSelect={() =>
                       setModal({
                         mode: "add-at",
                         targetItemId: group.section!.id,
-                        targetItemType: "clip-section",
+                        targetItemType: "chapter",
                         position: "after",
-                        defaultName: defaultSectionName,
+                        defaultName: defaultChapterName,
                       })
                     }
                   >
                     <PlusIcon />
-                    Add Section After
+                    Add Chapter After
                   </ContextMenuItem>
                   <ContextMenuSeparator />
                   <ContextMenuItem
                     variant="destructive"
-                    onSelect={() => props.onDeleteSection(group.section!.id)}
+                    onSelect={() => props.onDeleteChapter(group.section!.id)}
                   >
                     <Trash2Icon />
                     Delete
@@ -353,12 +353,12 @@ export const ReferencePanel = (props: {
                           targetItemId: clip.id,
                           targetItemType: "clip",
                           position: "before",
-                          defaultName: defaultSectionName,
+                          defaultName: defaultChapterName,
                         })
                       }
                     >
                       <PlusIcon />
-                      Add Section Before
+                      Add Chapter Before
                     </ContextMenuItem>
                     <ContextMenuItem
                       onSelect={() =>
@@ -367,12 +367,12 @@ export const ReferencePanel = (props: {
                           targetItemId: clip.id,
                           targetItemType: "clip",
                           position: "after",
-                          defaultName: defaultSectionName,
+                          defaultName: defaultChapterName,
                         })
                       }
                     >
                       <PlusIcon />
-                      Add Section After
+                      Add Chapter After
                     </ContextMenuItem>
                   </ContextMenuContent>
                 </ContextMenu>
@@ -389,16 +389,14 @@ export const ReferencePanel = (props: {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {modal?.mode === "edit"
-                ? "Edit Clip Section"
-                : "Name Clip Section"}
+              {modal?.mode === "edit" ? "Edit Chapter" : "Name Chapter"}
             </DialogTitle>
           </DialogHeader>
           <form className="space-y-4 py-4" onSubmit={handleSubmit}>
             <div className="space-y-2">
-              <Label htmlFor="reference-clip-section-name">Section Name</Label>
+              <Label htmlFor="reference-chapter-name">Chapter Name</Label>
               <Input
-                id="reference-clip-section-name"
+                id="reference-chapter-name"
                 name="name"
                 autoFocus
                 defaultValue={

@@ -1,4 +1,4 @@
-export type VideoWarningKind = "missingOpeningSection";
+export type VideoWarningKind = "missingOpeningChapter";
 
 export type VideoWarning = { kind: VideoWarningKind };
 
@@ -7,7 +7,7 @@ type WarningInputSection = { order: string; archived: boolean };
 
 export const computeVideoWarnings = (input: {
   clips: WarningInputClip[];
-  clipSections: WarningInputSection[];
+  chapters: WarningInputSection[];
 }): VideoWarning[] => {
   const liveClips = input.clips.filter((c) => !c.archived);
   if (liveClips.length === 0) return [];
@@ -17,7 +17,7 @@ export const computeVideoWarnings = (input: {
     liveClips[0]!.order
   );
 
-  const liveSections = input.clipSections.filter((s) => !s.archived);
+  const liveSections = input.chapters.filter((s) => !s.archived);
   const firstSectionOrder = liveSections.length
     ? liveSections.reduce(
         (min, s) => (s.order < min ? s.order : min),
@@ -28,5 +28,5 @@ export const computeVideoWarnings = (input: {
   const opensWithSection =
     firstSectionOrder !== null && firstSectionOrder < minClipOrder;
 
-  return opensWithSection ? [] : [{ kind: "missingOpeningSection" }];
+  return opensWithSection ? [] : [{ kind: "missingOpeningChapter" }];
 };

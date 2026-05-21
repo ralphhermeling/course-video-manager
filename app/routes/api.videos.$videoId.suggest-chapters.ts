@@ -1,11 +1,11 @@
 import { DBFunctionsService } from "@/services/db-service.server";
 import { runtimeLive } from "@/services/layer.server";
 import {
-  generateClipSectionsSystemPrompt,
-  buildClipSectionsUserMessage,
-} from "@/prompts/generate-clip-sections";
+  generateChaptersSystemPrompt,
+  buildChaptersUserMessage,
+} from "@/prompts/generate-chapters";
 import { Console, Effect } from "effect";
-import type { Route } from "./+types/api.videos.$videoId.suggest-clip-sections";
+import type { Route } from "./+types/api.videos.$videoId.suggest-chapters";
 import { anthropic } from "@ai-sdk/anthropic";
 import { streamObject } from "ai";
 import { data } from "react-router";
@@ -41,12 +41,12 @@ export const loader = async (args: Route.LoaderArgs) => {
     }));
     const validIds = new Set(clips.map((c) => c.id));
 
-    const existingSections = video.clipSections.map((s) => ({
+    const existingSections = video.chapters.map((s) => ({
       order: s.order,
       name: s.name,
     }));
 
-    const userMessage = buildClipSectionsUserMessage({
+    const userMessage = buildChaptersUserMessage({
       clips,
       existingSections,
     });
@@ -56,7 +56,7 @@ export const loader = async (args: Route.LoaderArgs) => {
     const result = streamObject({
       model: anthropic("claude-sonnet-4-5"),
       schema: proposalSchema,
-      system: generateClipSectionsSystemPrompt,
+      system: generateChaptersSystemPrompt,
       messages: [{ role: "user", content: userMessage }],
       abortSignal: abortController.signal,
     });

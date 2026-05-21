@@ -1,8 +1,8 @@
 import { useCallback, useState, type ReactNode } from "react";
 import {
-  GenerateClipSectionsModal,
+  GenerateChaptersModal,
   type ClipForPreview,
-} from "../components/generate-clip-sections-modal";
+} from "../components/generate-chapters-modal";
 import type { Clip } from "../clip-state-reducer";
 import type { ReferenceCandidate } from "../components/reference-panel";
 
@@ -12,12 +12,12 @@ type ModalState = {
   clips: ClipForPreview[];
 } | null;
 
-export const useGenerateClipSectionsModal = (input: {
+export const useGenerateChaptersModal = (input: {
   mainVideoId: string;
   mainVideoPath: string;
   clips: Clip[];
   referenceCandidates: ReferenceCandidate[];
-  onRegenerateClipSections: (
+  onRegenerateChapters: (
     videoId: string,
     sections: Array<{ beforeClipId: string; title: string }>
   ) => Promise<void>;
@@ -61,14 +61,14 @@ export const useGenerateClipSectionsModal = (input: {
   );
 
   const modal = state ? (
-    <GenerateClipSectionsModal
+    <GenerateChaptersModal
       open={true}
       videoId={state.videoId}
       videoLabel={state.label}
       clips={state.clips}
       onClose={() => setState(null)}
       onConfirm={async (sections) => {
-        await input.onRegenerateClipSections(state.videoId, sections);
+        await input.onRegenerateChapters(state.videoId, sections);
         setState(null);
       }}
     />

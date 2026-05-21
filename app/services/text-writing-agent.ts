@@ -435,18 +435,17 @@ export const acquireTextWritingContext = Effect.fn("acquireVideoContext")(
       const enabledSectionIds = new Set(props.enabledSections ?? []);
       const allSectionsEnabled =
         enabledSectionIds.size === 0 ||
-        (props.enabledSections?.length === 0 &&
-          video.clipSections.length === 0);
+        (props.enabledSections?.length === 0 && video.chapters.length === 0);
 
-      // Combine clips and clip sections, sort by order (ASCII ordering to match PostgreSQL COLLATE "C")
+      // Combine clips and chapters, sort by order (ASCII ordering to match PostgreSQL COLLATE "C")
       const allItems = [
         ...video.clips.map((clip) => ({
           type: "clip" as const,
           order: clip.order,
           clip,
         })),
-        ...video.clipSections.map((section) => ({
-          type: "clip-section" as const,
+        ...video.chapters.map((section) => ({
+          type: "chapter" as const,
           order: section.order,
           section,
         })),
@@ -462,7 +461,7 @@ export const acquireTextWritingContext = Effect.fn("acquireVideoContext")(
       let clipIndex = 0;
 
       for (const item of sortedAllItems) {
-        if (item.type === "clip-section") {
+        if (item.type === "chapter") {
           // Flush current paragraph before starting a new section
           if (currentParagraph.length > 0 && currentSectionEnabled) {
             transcriptParts.push(currentParagraph.join(" "));
@@ -490,16 +489,16 @@ export const acquireTextWritingContext = Effect.fn("acquireVideoContext")(
       transcript = transcriptParts.join("\n\n").trim();
     }
 
-    // Calculate YouTube chapters from clip sections
-    // Combine clips and clip sections, sort by order (ASCII ordering to match PostgreSQL COLLATE "C")
+    // Calculate YouTube chapters from chapters
+    // Combine clips and chapters, sort by order (ASCII ordering to match PostgreSQL COLLATE "C")
     const chaptersAllItems = [
       ...video.clips.map((clip) => ({
         type: "clip" as const,
         order: clip.order,
         clip,
       })),
-      ...video.clipSections.map((section) => ({
-        type: "clip-section" as const,
+      ...video.chapters.map((section) => ({
+        type: "chapter" as const,
         order: section.order,
         section,
       })),
@@ -509,7 +508,7 @@ export const acquireTextWritingContext = Effect.fn("acquireVideoContext")(
 
     const chaptersInput: YouTubeChaptersItem[] = sortedChaptersItems.map(
       (item): YouTubeChaptersItem => {
-        if (item.type === "clip-section") {
+        if (item.type === "chapter") {
           return { type: "section", name: item.section.name };
         } else {
           return {
@@ -527,10 +526,10 @@ export const acquireTextWritingContext = Effect.fn("acquireVideoContext")(
     const enabledSectionIds = new Set(props.enabledSections ?? []);
     const allSectionsEnabled =
       enabledSectionIds.size === 0 ||
-      (props.enabledSections?.length === 0 && video.clipSections.length === 0);
+      (props.enabledSections?.length === 0 && video.chapters.length === 0);
     const sectionNames = allSectionsEnabled
-      ? video.clipSections.map((section) => section.name)
-      : video.clipSections
+      ? video.chapters.map((section) => section.name)
+      : video.chapters
           .filter((section) => enabledSectionIds.has(section.id))
           .map((section) => section.name);
 

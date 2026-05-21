@@ -114,8 +114,8 @@ async function createFullCourseStructure() {
     },
   ]);
 
-  // Clip sections: one active, one archived
-  await testDb.insert(schema.clipSections).values([
+  // Chapters: one active, one archived
+  await testDb.insert(schema.chapters).values([
     {
       videoId: video!.id,
       name: "Section A",
@@ -366,7 +366,7 @@ describe("duplicateCourse", () => {
     expect(clips[0]!.beatType).toBe("intro");
   });
 
-  it("copies clip sections and excludes archived clip sections", async () => {
+  it("copies chapters and excludes archived chapters", async () => {
     const { course } = await createFullCourseStructure();
 
     const result = await run(
@@ -387,7 +387,7 @@ describe("duplicateCourse", () => {
           with: {
             videos: {
               with: {
-                clipSections: {
+                chapters: {
                   orderBy: (cs, { asc }) => asc(cs.order),
                 },
               },
@@ -397,9 +397,9 @@ describe("duplicateCourse", () => {
       },
     });
 
-    const clipSections = newSections[0]!.lessons[0]!.videos[0]!.clipSections;
-    expect(clipSections).toHaveLength(1);
-    expect(clipSections[0]!.name).toBe("Section A");
+    const chapters = newSections[0]!.lessons[0]!.videos[0]!.chapters;
+    expect(chapters).toHaveLength(1);
+    expect(chapters[0]!.name).toBe("Section A");
   });
 
   it("copies thumbnails", async () => {

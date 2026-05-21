@@ -1,11 +1,11 @@
 import { useMemo } from "react";
 import { BeatIndicator } from "./timeline-indicators";
 import { ClipItem } from "./clip-item";
-import { ClipSectionItem } from "./clip-section-item";
+import { ChapterItem } from "./chapter-item";
 import { PreRecordingChecklist } from "./pre-recording-checklist";
 import { InlineSuggestion } from "./inline-suggestion";
 import { InsertionPointWithSession } from "./insertion-point-with-session";
-import { isClipSection } from "../clip-utils";
+import { isChapter } from "../clip-utils";
 import { useContextSelector } from "use-context-selector";
 import { VideoEditorContext } from "../video-editor-context";
 import { Button } from "@/components/ui/button";
@@ -13,12 +13,12 @@ import { Plus } from "lucide-react";
 import type { FrontendId } from "../clip-state-reducer";
 
 /**
- * ClipTimeline component displays the main timeline of clips and clip sections.
+ * ClipTimeline component displays the main timeline of clips and chapters.
  *
  * Handles rendering:
  * - Pre-recording checklist (when no clips exist)
  * - Insertion point indicators (start/end/after-clip positions)
- * - Clip sections (with full interactivity)
+ * - Chapters (with full interactivity)
  * - Clips (with full interactivity)
  * - Beat indicators between clips
  */
@@ -34,21 +34,21 @@ export const ClipTimeline = () => {
     VideoEditorContext,
     (ctx) => ctx.clipComputedProps
   );
-  const generateDefaultClipSectionName = useContextSelector(
+  const generateDefaultChapterName = useContextSelector(
     VideoEditorContext,
-    (ctx) => ctx.generateDefaultClipSectionName
+    (ctx) => ctx.generateDefaultChapterName
   );
-  const onEditSection = useContextSelector(
+  const onEditChapter = useContextSelector(
     VideoEditorContext,
-    (ctx) => ctx.onEditSection
+    (ctx) => ctx.onEditChapter
   );
-  const onAddSectionBefore = useContextSelector(
+  const onAddChapterBefore = useContextSelector(
     VideoEditorContext,
-    (ctx) => ctx.onAddSectionBefore
+    (ctx) => ctx.onAddChapterBefore
   );
-  const onAddSectionAfter = useContextSelector(
+  const onAddChapterAfter = useContextSelector(
     VideoEditorContext,
-    (ctx) => ctx.onAddSectionAfter
+    (ctx) => ctx.onAddChapterAfter
   );
   const sessions = useContextSelector(
     VideoEditorContext,
@@ -58,9 +58,9 @@ export const ClipTimeline = () => {
     VideoEditorContext,
     (ctx) => ctx.allItems
   );
-  const onOpenCreateSectionModal = useContextSelector(
+  const onOpenCreateChapterModal = useContextSelector(
     VideoEditorContext,
-    (ctx) => ctx.onOpenCreateSectionModal
+    (ctx) => ctx.onOpenCreateChapterModal
   );
 
   /**
@@ -88,7 +88,7 @@ export const ClipTimeline = () => {
         (i) =>
           i.type !== "optimistically-added" &&
           i.type !== "effect-clip-optimistically-added" &&
-          i.type !== "clip-section-optimistically-added"
+          i.type !== "chapter-optimistically-added"
       );
 
     return lastNonOptimistic?.frontendId ?? null;
@@ -103,10 +103,10 @@ export const ClipTimeline = () => {
             <Button
               variant="outline"
               className="w-full"
-              onClick={onOpenCreateSectionModal}
+              onClick={onOpenCreateChapterModal}
             >
               <Plus className="size-4 mr-2" />
-              Add Section
+              Add Chapter
             </Button>
           </>
         )}
@@ -118,27 +118,27 @@ export const ClipTimeline = () => {
               const isFirstItem = itemIndex === 0;
               const isLastItem = itemIndex === items.length - 1;
 
-              // Render clip section divider
-              if (isClipSection(item)) {
+              // Render chapter divider
+              if (isChapter(item)) {
                 return (
                   <div key={item.frontendId}>
-                    <ClipSectionItem
-                      section={item}
+                    <ChapterItem
+                      chapter={item}
                       isFirstItem={isFirstItem}
                       isLastItem={isLastItem}
-                      onEditSection={() => {
-                        onEditSection(item.frontendId, item.name);
+                      onEditChapter={() => {
+                        onEditChapter(item.frontendId, item.name);
                       }}
-                      onAddSectionBefore={() => {
-                        onAddSectionBefore(
+                      onAddChapterBefore={() => {
+                        onAddChapterBefore(
                           item.frontendId,
-                          generateDefaultClipSectionName()
+                          generateDefaultChapterName()
                         );
                       }}
-                      onAddSectionAfter={() => {
-                        onAddSectionAfter(
+                      onAddChapterAfter={() => {
+                        onAddChapterAfter(
                           item.frontendId,
-                          generateDefaultClipSectionName()
+                          generateDefaultChapterName()
                         );
                       }}
                     />
@@ -163,16 +163,16 @@ export const ClipTimeline = () => {
                     isLastItem={isLastItem}
                     timecode={timecode}
                     nextLevenshtein={nextLevenshtein}
-                    onAddSectionBefore={() => {
-                      onAddSectionBefore(
+                    onAddChapterBefore={() => {
+                      onAddChapterBefore(
                         clip.frontendId,
-                        generateDefaultClipSectionName()
+                        generateDefaultChapterName()
                       );
                     }}
-                    onAddSectionAfter={() => {
-                      onAddSectionAfter(
+                    onAddChapterAfter={() => {
+                      onAddChapterAfter(
                         clip.frontendId,
-                        generateDefaultClipSectionName()
+                        generateDefaultChapterName()
                       );
                     }}
                   />

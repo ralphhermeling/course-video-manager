@@ -12,7 +12,7 @@ export interface ClipInput {
   videoFilename: string;
 }
 
-export interface ClipSectionInput {
+export interface ChapterInput {
   id: string;
   order: string;
   name: string;
@@ -35,7 +35,7 @@ type OrderedItem =
 
 function toOrderedItems(
   clips: readonly ClipInput[],
-  clipSections: readonly ClipSectionInput[]
+  chapters: readonly ChapterInput[]
 ): OrderedItem[] {
   return sortByOrder<OrderedItem>([
     ...clips.map<OrderedItem>((clip) => ({
@@ -46,7 +46,7 @@ function toOrderedItems(
       sourceEndTime: clip.sourceEndTime,
       videoFilename: clip.videoFilename,
     })),
-    ...clipSections.map<OrderedItem>((section) => ({
+    ...chapters.map<OrderedItem>((section) => ({
       type: "section",
       order: section.order,
       id: section.id,
@@ -60,14 +60,14 @@ export type ProjectionClipInput = {
   text: string | null;
 };
 
-export type ProjectionClipSectionInput = {
+export type ProjectionChapterInput = {
   order: string;
   name: string;
 };
 
 export function toTranscriptItems(
   clips: readonly ProjectionClipInput[],
-  clipSections: readonly ProjectionClipSectionInput[]
+  chapters: readonly ProjectionChapterInput[]
 ): TranscriptItem[] {
   const sorted = sortByOrder<
     | { kind: "clip"; order: string; text: string | null }
@@ -78,7 +78,7 @@ export function toTranscriptItems(
       order: c.order,
       text: c.text,
     })),
-    ...clipSections.map((s) => ({
+    ...chapters.map((s) => ({
       kind: "section" as const,
       order: s.order,
       name: s.name,
@@ -126,14 +126,14 @@ export function toDiffArray(items: readonly TranscriptItem[]): string[] {
 
 export function buildTranscript(
   clips: readonly ClipInput[],
-  clipSections: readonly ClipSectionInput[]
+  chapters: readonly ChapterInput[]
 ): {
   indexedClips: IndexedClip[];
   transcript: string;
   wordCount: number;
   sections: SectionWithWordCount[];
 } {
-  const sortedItems = toOrderedItems(clips, clipSections);
+  const sortedItems = toOrderedItems(clips, chapters);
 
   const indexedClips: IndexedClip[] = [];
   const transcriptParts: string[] = [];

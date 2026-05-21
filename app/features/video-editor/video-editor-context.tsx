@@ -91,9 +91,9 @@ export type VideoEditorContextType = {
   onSetInsertionPoint: (mode: "after" | "before", clipId: FrontendId) => void;
   onMoveClip: (clipId: FrontendId, direction: "up" | "down") => void;
   onToggleBeatForClip: (clipId: FrontendId) => void;
-  onAddClipSection: (name: string) => void;
-  onUpdateClipSection: (clipSectionId: FrontendId, name: string) => void;
-  onAddClipSectionAt: (
+  onAddChapter: (name: string) => void;
+  onUpdateChapter: (chapterId: FrontendId, name: string) => void;
+  onAddChapterAt: (
     name: string,
     position: "before" | "after",
     itemId: FrontendId
@@ -105,13 +105,13 @@ export type VideoEditorContextType = {
   ) => void;
   onClipFinished: () => void;
   onUpdateCurrentTime: (time: number) => void;
-  onSectionClick: (sectionId: FrontendId, index: number) => void;
-  onAddIntroSection: () => void;
-  onOpenCreateSectionModal: () => void;
-  onEditSection: (sectionId: FrontendId, currentName: string) => void;
-  onAddSectionBefore: (itemId: FrontendId, defaultName: string) => void;
-  onAddSectionAfter: (itemId: FrontendId, defaultName: string) => void;
-  generateDefaultClipSectionName: () => string;
+  onChapterClick: (chapterId: FrontendId, index: number) => void;
+  onAddIntroChapter: () => void;
+  onOpenCreateChapterModal: () => void;
+  onEditChapter: (chapterId: FrontendId, currentName: string) => void;
+  onAddChapterBefore: (itemId: FrontendId, defaultName: string) => void;
+  onAddChapterAfter: (itemId: FrontendId, defaultName: string) => void;
+  generateDefaultChapterName: () => string;
   onRestoreClip: (clipId: FrontendId) => void;
   onPermanentlyRemoveArchived: (sessionId: SessionId) => void;
 
@@ -136,8 +136,8 @@ export type VideoEditorContextType = {
   suggestionState: SuggestionState;
   setSuggestionState: (state: SuggestionState) => void;
 
-  // AI ClipSection generation
-  onOpenGenerateClipSectionsModal: () => void;
+  // AI Chapter generation
+  onOpenGenerateChaptersModal: () => void;
 
   // Diagram pin
   onUnpinDiagram: (clipId: FrontendId) => void;

@@ -49,10 +49,10 @@ export const loader = async (args: Route.LoaderArgs) => {
 
     const lesson = video.lesson;
 
-    // Build transcript from clips and clip sections
+    // Build transcript from clips and chapters
     type ClipItem = { type: "clip"; order: string; text: string | null };
-    type ClipSectionItem = {
-      type: "clip-section";
+    type ChapterItem = {
+      type: "chapter";
       order: string;
       name: string;
     };
@@ -63,22 +63,20 @@ export const loader = async (args: Route.LoaderArgs) => {
       text: clip.text,
     }));
 
-    const clipSectionItems: ClipSectionItem[] = video.clipSections.map(
-      (section) => ({
-        type: "clip-section" as const,
-        order: section.order,
-        name: section.name,
-      })
-    );
+    const chapterItems: ChapterItem[] = video.chapters.map((section) => ({
+      type: "chapter" as const,
+      order: section.order,
+      name: section.name,
+    }));
 
-    const sortedItems = sortByOrder([...clipItems, ...clipSectionItems]);
+    const sortedItems = sortByOrder([...clipItems, ...chapterItems]);
 
     // Build formatted transcript with sections as H2 headers
     const transcriptParts: string[] = [];
     let currentParagraph: string[] = [];
 
     for (const item of sortedItems) {
-      if (item.type === "clip-section") {
+      if (item.type === "chapter") {
         if (currentParagraph.length > 0) {
           transcriptParts.push(currentParagraph.join(" "));
           currentParagraph = [];
@@ -101,8 +99,8 @@ export const loader = async (args: Route.LoaderArgs) => {
     let currentSectionIndex = -1;
 
     for (const item of sortedItems) {
-      if (item.type === "clip-section") {
-        const section = video.clipSections.find((s) => s.order === item.order);
+      if (item.type === "chapter") {
+        const section = video.chapters.find((s) => s.order === item.order);
         if (section) {
           currentSectionIndex = sectionsWithWordCount.length;
           sectionsWithWordCount.push({
@@ -162,7 +160,7 @@ export const loader = async (args: Route.LoaderArgs) => {
         files: standaloneFiles,
         isStandalone: true,
         transcriptWordCount,
-        clipSections: sectionsWithWordCount,
+        chapters: sectionsWithWordCount,
         links: globalLinks,
         courseStructure: null as CourseStructure | null,
         showSocialShareButtons,
@@ -245,7 +243,7 @@ export const loader = async (args: Route.LoaderArgs) => {
       files: filesWithMetadata,
       isStandalone: false,
       transcriptWordCount,
-      clipSections: sectionsWithWordCount,
+      chapters: sectionsWithWordCount,
       links: globalLinks,
       courseStructure,
       showSocialShareButtons,
@@ -280,7 +278,7 @@ export default function SocialPage(props: Route.ComponentProps) {
     files,
     isStandalone,
     transcriptWordCount,
-    clipSections,
+    chapters,
     links,
     courseStructure,
     showSocialShareButtons,
@@ -292,7 +290,7 @@ export default function SocialPage(props: Route.ComponentProps) {
   });
   const [includeTranscript, setIncludeTranscript] = useState(true);
   const [enabledSections, setEnabledSections] = useState<Set<string>>(() => {
-    return new Set(clipSections.map((s) => s.id));
+    return new Set(chapters.map((s) => s.id));
   });
   const [includeCourseStructure, setIncludeCourseStructure] = useState(false);
 
@@ -357,7 +355,7 @@ export default function SocialPage(props: Route.ComponentProps) {
         <VideoContextPanel
           videoSrc={`/api/videos/${videoId}/stream`}
           transcriptWordCount={transcriptWordCount}
-          clipSections={clipSections}
+          chapters={chapters}
           enabledSections={enabledSections}
           onEnabledSectionsChange={setEnabledSections}
           includeTranscript={includeTranscript}
@@ -396,7 +394,7 @@ export default function SocialPage(props: Route.ComponentProps) {
 
         <SocialPagePanel
           videoId={videoId}
-          clipSections={clipSections}
+          chapters={chapters}
           enabledSections={enabledSections}
           enabledFiles={enabledFiles}
           includeTranscript={includeTranscript}

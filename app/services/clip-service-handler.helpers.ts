@@ -2,7 +2,7 @@
  * Helper functions and types for ClipService handler.
  */
 
-import { clips, clipSections, videos } from "@/db/schema";
+import { clips, chapters, videos } from "@/db/schema";
 import { compareOrderStrings } from "@/lib/sort-by-order";
 import { and, asc, eq } from "drizzle-orm";
 import { Effect } from "effect";
@@ -79,20 +79,17 @@ export const getOrderedItems = Effect.fn("getOrderedItems")(function* (
     })
   );
 
-  const allClipSections = yield* Effect.promise(() =>
-    db.query.clipSections.findMany({
-      where: and(
-        eq(clipSections.videoId, videoId),
-        eq(clipSections.archived, false)
-      ),
-      orderBy: asc(clipSections.order),
+  const allChapters = yield* Effect.promise(() =>
+    db.query.chapters.findMany({
+      where: and(eq(chapters.videoId, videoId), eq(chapters.archived, false)),
+      orderBy: asc(chapters.order),
     })
   );
 
   const allItems = [
     ...allClips.map((c) => ({ type: "clip" as const, ...c })),
-    ...allClipSections.map((cs) => ({
-      type: "clip-section" as const,
+    ...allChapters.map((cs) => ({
+      type: "chapter" as const,
       ...cs,
     })),
   ].sort((a, b) => compareOrderStrings(a.order, b.order));
@@ -148,15 +145,14 @@ export const appendClipsAtInsertionPoint = Effect.fn(
 
     const nextItem = allItems[insertAfterClipIndex + 1];
     nextOrder = nextItem?.order ?? null;
-  } else if (insertionPoint.type === "after-clip-section") {
+  } else if (insertionPoint.type === "after-chapter") {
     const insertAfterSectionIndex = allItems.findIndex(
-      (item) =>
-        item.type === "clip-section" && item.id === insertionPoint.clipSectionId
+      (item) => item.type === "chapter" && item.id === insertionPoint.chapterId
     );
 
     if (insertAfterSectionIndex === -1) {
       throw new Error(
-        `Could not find a clip section to insert after: ${insertionPoint.clipSectionId}`
+        `Could not find a chapter to insert after: ${insertionPoint.chapterId}`
       );
     }
 
@@ -346,7 +342,7 @@ export const handleCreateVideoFromSelection = Effect.fn(
   input: CreateVideoFromSelectionInput,
   logger: LoggerAdapter
 ) {
-  const { sourceVideoId, clipIds, clipSectionIds, title, mode } = input;
+  const { sourceVideoId, clipIds, chapterIds, title, mode } = input;
 
   // Get the source video to inherit lessonId
   const sourceVideo = yield* Effect.promise(() =>
@@ -380,7 +376,7 @@ export const handleCreateVideoFromSelection = Effect.fn(
 
   // Build sets for quick lookup
   const selectedClipIds = new Set(clipIds);
-  const selectedSectionIds = new Set(clipSectionIds);
+  const selectedSectionIds = new Set(chapterIds);
 
   // Filter to only selected items, preserving original timeline order
   const selectedItems = allItems.filter((item) => {
@@ -417,7 +413,7 @@ export const handleCreateVideoFromSelection = Effect.fn(
       );
     } else {
       yield* Effect.promise(() =>
-        db.insert(clipSections).values({
+        db.insert(chapters).values({
           videoId: newVideo.id,
           name: item.name,
           order,
@@ -435,12 +431,12 @@ export const handleCreateVideoFromSelection = Effect.fn(
       );
     }
 
-    for (const clipSectionId of clipSectionIds) {
+    for (const chapterId of chapterIds) {
       yield* Effect.promise(() =>
         db
-          .update(clipSections)
+          .update(chapters)
           .set({ archived: true })
-          .where(eq(clipSections.id, clipSectionId))
+          .where(eq(chapters.id, chapterId))
       );
     }
 
