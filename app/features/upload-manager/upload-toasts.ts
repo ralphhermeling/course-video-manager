@@ -24,11 +24,10 @@ export function showSuccessToast(upload: uploadReducer.UploadEntry): void {
       duration: Infinity,
       action: upload.youtubeVideoId
         ? {
-            label: "YouTube Studio",
+            label: "Copy YouTube Studio Link",
             onClick: () =>
-              window.open(
-                `https://studio.youtube.com/video/${upload.youtubeVideoId}/edit`,
-                "_blank"
+              navigator.clipboard.writeText(
+                `https://studio.youtube.com/video/${upload.youtubeVideoId}/edit`
               ),
           }
         : undefined,
