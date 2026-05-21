@@ -2,6 +2,16 @@ import { useState } from "react";
 import { useFetcher } from "react-router";
 import { cn } from "@/lib/utils";
 import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuRadioGroup,
+  ContextMenuRadioItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -22,8 +32,13 @@ import {
   XIcon,
 } from "lucide-react";
 import {
+  PITCH_STATUS_ORDER,
+  STATUS_META,
+} from "@/components/status-icon-badge";
+import {
   CourseBadge,
   PitchBadge,
+  PriorityPill,
   type LinkedCourse,
   type LinkedPitch,
 } from "./deliverable-links";
@@ -144,6 +159,160 @@ function DeliverableActionsMenu({
   );
 }
 
+function CourseContextMenu({
+  course,
+  d,
+  allCourses,
+  submitLinkUpdate,
+}: {
+  course: LinkedCourse;
+  d: DeliverableForCard;
+  allCourses: CourseOption[];
+  submitLinkUpdate: (courseIds: string[], pitchIds: string[]) => void;
+}) {
+  const pitchIds = d.linkedPitches.map((lp) => lp.id);
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger className="cursor-context-menu">
+        <CourseBadge course={course} />
+      </ContextMenuTrigger>
+      <ContextMenuContent className="w-56">
+        <ContextMenuLabel>Change course</ContextMenuLabel>
+        <ContextMenuSeparator />
+        <ContextMenuRadioGroup
+          value={course.id}
+          onValueChange={(newId) => {
+            submitLinkUpdate(
+              d.linkedCourses.map((lc) =>
+                lc.id === course.id ? newId : lc.id
+              ),
+              pitchIds
+            );
+          }}
+        >
+          {allCourses
+            .slice()
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map((co) => (
+              <ContextMenuRadioItem
+                key={co.id}
+                value={co.id}
+                disabled={
+                  d.linkedCourses.some((lc) => lc.id === co.id) &&
+                  co.id !== course.id
+                }
+              >
+                {co.name}
+              </ContextMenuRadioItem>
+            ))}
+        </ContextMenuRadioGroup>
+        <ContextMenuSeparator />
+        <ContextMenuItem
+          variant="destructive"
+          onSelect={() => {
+            submitLinkUpdate(
+              d.linkedCourses
+                .filter((lc) => lc.id !== course.id)
+                .map((lc) => lc.id),
+              pitchIds
+            );
+          }}
+        >
+          <Trash2Icon className="size-3.5" />
+          Remove
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+}
+
+function PitchContextMenu({
+  pitch,
+  d,
+  allPitches,
+  submitLinkUpdate,
+}: {
+  pitch: LinkedPitch;
+  d: DeliverableForCard;
+  allPitches: PitchOption[];
+  submitLinkUpdate: (courseIds: string[], pitchIds: string[]) => void;
+}) {
+  const courseIds = d.linkedCourses.map((lc) => lc.id);
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger className="cursor-context-menu">
+        <PitchBadge pitch={pitch} />
+      </ContextMenuTrigger>
+      <ContextMenuContent className="w-72">
+        <ContextMenuLabel>Change pitch</ContextMenuLabel>
+        <ContextMenuSeparator />
+        <ContextMenuRadioGroup
+          value={pitch.id}
+          onValueChange={(newId) => {
+            submitLinkUpdate(
+              courseIds,
+              d.linkedPitches.map((lp) => (lp.id === pitch.id ? newId : lp.id))
+            );
+          }}
+        >
+          {PITCH_STATUS_ORDER.flatMap((status) => {
+            const inGroup = allPitches
+              .filter((ap) => ap.status === status)
+              .sort((a, b) =>
+                a.priority !== b.priority
+                  ? a.priority - b.priority
+                  : a.title.localeCompare(b.title)
+              );
+            if (inGroup.length === 0) return [];
+            const Icon = STATUS_META[status].icon;
+            return [
+              <ContextMenuLabel
+                key={`label-${status}`}
+                className="text-[10px] uppercase tracking-wider text-muted-foreground pt-2"
+              >
+                <span className="flex items-center gap-1.5">
+                  <Icon className="size-3" />
+                  {STATUS_META[status].label}
+                </span>
+              </ContextMenuLabel>,
+              ...inGroup.map((ap) => (
+                <ContextMenuRadioItem
+                  key={ap.id}
+                  value={ap.id}
+                  disabled={
+                    d.linkedPitches.some((lp) => lp.id === ap.id) &&
+                    ap.id !== pitch.id
+                  }
+                >
+                  <span className="flex items-center gap-2">
+                    <PriorityPill p={ap.priority} />
+                    <span className="truncate">{ap.title}</span>
+                  </span>
+                </ContextMenuRadioItem>
+              )),
+            ];
+          })}
+        </ContextMenuRadioGroup>
+        <ContextMenuSeparator />
+        <ContextMenuItem
+          variant="destructive"
+          onSelect={() => {
+            submitLinkUpdate(
+              courseIds,
+              d.linkedPitches
+                .filter((lp) => lp.id !== pitch.id)
+                .map((lp) => lp.id)
+            );
+          }}
+        >
+          <Trash2Icon className="size-3.5" />
+          Remove
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+}
+
 export function DeliverableCard({
   d,
   todayStr,
@@ -156,6 +325,21 @@ export function DeliverableCard({
   allPitches: PitchOption[];
 }) {
   const [editing, setEditing] = useState(false);
+  const linkFetcher = useFetcher();
+
+  function submitLinkUpdate(courseIds: string[], pitchIds: string[]) {
+    const fd = new FormData();
+    fd.set("title", d.title);
+    fd.set("date", d.date);
+    fd.set("notes", d.notes ?? "");
+    fd.set("status", d.status);
+    for (const id of courseIds) fd.append("courseIds", id);
+    for (const id of pitchIds) fd.append("pitchIds", id);
+    linkFetcher.submit(fd, {
+      method: "post",
+      action: `/api/deliverables/${d.id}/update`,
+    });
+  }
 
   if (editing) {
     return (
@@ -229,10 +413,22 @@ export function DeliverableCard({
         {(d.linkedCourses.length > 0 || d.linkedPitches.length > 0) && (
           <div className="flex flex-wrap gap-1.5 mt-2">
             {d.linkedCourses.map((c) => (
-              <CourseBadge key={c.id} course={c} />
+              <CourseContextMenu
+                key={c.id}
+                course={c}
+                d={d}
+                allCourses={allCourses}
+                submitLinkUpdate={submitLinkUpdate}
+              />
             ))}
             {d.linkedPitches.map((p) => (
-              <PitchBadge key={p.id} pitch={p} />
+              <PitchContextMenu
+                key={p.id}
+                pitch={p}
+                d={d}
+                allPitches={allPitches}
+                submitLinkUpdate={submitLinkUpdate}
+              />
             ))}
           </div>
         )}
