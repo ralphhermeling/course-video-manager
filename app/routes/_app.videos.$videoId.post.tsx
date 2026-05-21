@@ -181,7 +181,6 @@ export const loader = async (args: Route.LoaderArgs) => {
         isYoutubeAuthenticated,
         thumbnails: videoThumbnails,
         pitchYoutubeTitle: pitch?.youtubeTitle ?? null,
-        pitchTweet: pitch?.tweet ?? null,
       };
     }
 
@@ -268,7 +267,6 @@ export const loader = async (args: Route.LoaderArgs) => {
       isYoutubeAuthenticated,
       thumbnails: videoThumbnails,
       pitchYoutubeTitle: pitch?.youtubeTitle ?? null,
-      pitchTweet: pitch?.tweet ?? null,
     };
   }).pipe(
     Effect.tapErrorCause((e) => Console.dir(e, { depth: null })),
@@ -315,7 +313,6 @@ export default function PostPageRoute(props: Route.ComponentProps) {
     thumbnails,
     videoExists,
     pitchYoutubeTitle,
-    pitchTweet,
   } = props.loaderData;
 
   // Context panel state
@@ -464,7 +461,6 @@ export default function PostPageRoute(props: Route.ComponentProps) {
             includeCourseStructure={includeCourseStructure}
             clipSections={clipSections}
             pitchYoutubeTitle={pitchYoutubeTitle}
-            pitchTweet={pitchTweet}
           />
         </div>
       </div>

@@ -120,3 +120,9 @@ Avoid shallow modules: large interface with many methods that just pass through 
 1. **Accept dependencies, don't create them** — pass external dependencies in rather than constructing them internally.
 2. **Return results, don't produce side effects** — a function that returns a value is easier to test than one that mutates state.
 3. **Small surface area** — fewer methods = fewer tests needed, fewer params = simpler test setup.
+
+---
+
+## localStorage
+
+Use `useLocalStorage` from `@/hooks/use-local-storage` for component state that should persist in `localStorage`. The hook handles SSR guards, initialization from a stored value with a fallback, and auto-saves on every change. Avoid raw `localStorage.getItem`/`setItem` scattered across components.
