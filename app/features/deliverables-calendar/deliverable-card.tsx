@@ -2,6 +2,16 @@ import { useState } from "react";
 import { useFetcher } from "react-router";
 import { cn } from "@/lib/utils";
 import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuRadioGroup,
+  ContextMenuRadioItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -22,8 +32,13 @@ import {
   XIcon,
 } from "lucide-react";
 import {
+  PITCH_STATUS_ORDER,
+  STATUS_META,
+} from "@/components/status-icon-badge";
+import {
   CourseBadge,
   PitchBadge,
+  PriorityPill,
   type LinkedCourse,
   type LinkedPitch,
 } from "./deliverable-links";
@@ -156,6 +171,21 @@ export function DeliverableCard({
   allPitches: PitchOption[];
 }) {
   const [editing, setEditing] = useState(false);
+  const linkFetcher = useFetcher();
+
+  function submitLinkUpdate(courseIds: string[], pitchIds: string[]) {
+    const fd = new FormData();
+    fd.set("title", d.title);
+    fd.set("date", d.date);
+    fd.set("notes", d.notes ?? "");
+    fd.set("status", d.status);
+    for (const id of courseIds) fd.append("courseIds", id);
+    for (const id of pitchIds) fd.append("pitchIds", id);
+    linkFetcher.submit(fd, {
+      method: "post",
+      action: `/api/deliverables/${d.id}/update`,
+    });
+  }
 
   if (editing) {
     return (
@@ -229,10 +259,132 @@ export function DeliverableCard({
         {(d.linkedCourses.length > 0 || d.linkedPitches.length > 0) && (
           <div className="flex flex-wrap gap-1.5 mt-2">
             {d.linkedCourses.map((c) => (
-              <CourseBadge key={c.id} course={c} />
+              <ContextMenu key={c.id}>
+                <ContextMenuTrigger className="cursor-context-menu">
+                  <CourseBadge course={c} />
+                </ContextMenuTrigger>
+                <ContextMenuContent className="w-56">
+                  <ContextMenuLabel>Change course</ContextMenuLabel>
+                  <ContextMenuSeparator />
+                  <ContextMenuRadioGroup
+                    value={c.id}
+                    onValueChange={(newId) => {
+                      submitLinkUpdate(
+                        d.linkedCourses.map((lc) =>
+                          lc.id === c.id ? newId : lc.id
+                        ),
+                        d.linkedPitches.map((lp) => lp.id)
+                      );
+                    }}
+                  >
+                    {allCourses
+                      .slice()
+                      .sort((a, b) => a.name.localeCompare(b.name))
+                      .map((co) => (
+                        <ContextMenuRadioItem
+                          key={co.id}
+                          value={co.id}
+                          disabled={
+                            d.linkedCourses.some((lc) => lc.id === co.id) &&
+                            co.id !== c.id
+                          }
+                        >
+                          {co.name}
+                        </ContextMenuRadioItem>
+                      ))}
+                  </ContextMenuRadioGroup>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem
+                    variant="destructive"
+                    onSelect={() => {
+                      submitLinkUpdate(
+                        d.linkedCourses
+                          .filter((lc) => lc.id !== c.id)
+                          .map((lc) => lc.id),
+                        d.linkedPitches.map((lp) => lp.id)
+                      );
+                    }}
+                  >
+                    <Trash2Icon className="size-3.5" />
+                    Remove
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
             ))}
             {d.linkedPitches.map((p) => (
-              <PitchBadge key={p.id} pitch={p} />
+              <ContextMenu key={p.id}>
+                <ContextMenuTrigger className="cursor-context-menu">
+                  <PitchBadge pitch={p} />
+                </ContextMenuTrigger>
+                <ContextMenuContent className="w-72">
+                  <ContextMenuLabel>Change pitch</ContextMenuLabel>
+                  <ContextMenuSeparator />
+                  <ContextMenuRadioGroup
+                    value={p.id}
+                    onValueChange={(newId) => {
+                      submitLinkUpdate(
+                        d.linkedCourses.map((c) => c.id),
+                        d.linkedPitches.map((lp) =>
+                          lp.id === p.id ? newId : lp.id
+                        )
+                      );
+                    }}
+                  >
+                    {PITCH_STATUS_ORDER.flatMap((status) => {
+                      const inGroup = allPitches
+                        .filter((ap) => ap.status === status)
+                        .sort((a, b) =>
+                          a.priority !== b.priority
+                            ? a.priority - b.priority
+                            : a.title.localeCompare(b.title)
+                        );
+                      if (inGroup.length === 0) return [];
+                      const Icon = STATUS_META[status].icon;
+                      return [
+                        <ContextMenuLabel
+                          key={`label-${status}`}
+                          className="text-[10px] uppercase tracking-wider text-muted-foreground pt-2"
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <Icon className="size-3" />
+                            {STATUS_META[status].label}
+                          </span>
+                        </ContextMenuLabel>,
+                        ...inGroup.map((ap) => (
+                          <ContextMenuRadioItem
+                            key={ap.id}
+                            value={ap.id}
+                            disabled={
+                              d.linkedPitches.some((lp) => lp.id === ap.id) &&
+                              ap.id !== p.id
+                            }
+                          >
+                            <span className="flex items-center gap-2">
+                              <PriorityPill p={ap.priority} />
+                              <span className="truncate">{ap.title}</span>
+                            </span>
+                          </ContextMenuRadioItem>
+                        )),
+                      ];
+                    })}
+                  </ContextMenuRadioGroup>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem
+                    variant="destructive"
+                    onSelect={() => {
+                      submitLinkUpdate(
+                        d.linkedCourses.map((c) => c.id),
+                        d.linkedPitches
+                          .filter((lp) => lp.id !== p.id)
+                          .map((lp) => lp.id)
+                      );
+                    }}
+                  >
+                    <Trash2Icon className="size-3.5" />
+                    Remove
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
             ))}
           </div>
         )}
