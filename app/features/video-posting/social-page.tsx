@@ -139,7 +139,7 @@ export const SocialPagePanel = (props: SocialPagePanelProps) => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          url: "https://aihero.dev/newsletter",
+          url: "https://aihero.dev/skills/subscribe",
           description: `${platform} (${videoTitle})`,
         }),
       });
