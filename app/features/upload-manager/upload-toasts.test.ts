@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { toast } from "sonner";
 import { showSuccessToast } from "./upload-toasts";
 import type { uploadReducer } from "./upload-reducer";
@@ -32,13 +32,16 @@ describe("showSuccessToast", () => {
     vi.clearAllMocks();
   });
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   describe("youtube upload", () => {
-    it("should show a copy button that copies the YouTube Studio link to clipboard", async () => {
+    it("should copy the YouTube Studio link to clipboard", () => {
       const writeText = vi.fn().mockResolvedValue(undefined);
       vi.stubGlobal("navigator", { clipboard: { writeText } });
 
-      const upload = makeYouTubeUpload();
-      showSuccessToast(upload);
+      showSuccessToast(makeYouTubeUpload());
 
       const call = vi.mocked(toast.success).mock.calls[0]!;
       expect(call[0]).toBe('"Test Video" uploaded to YouTube');
@@ -53,8 +56,14 @@ describe("showSuccessToast", () => {
       expect(writeText).toHaveBeenCalledWith(
         "https://studio.youtube.com/video/yt-123/edit"
       );
+    });
 
-      vi.unstubAllGlobals();
+    it("should omit the copy action when youtubeVideoId is null", () => {
+      showSuccessToast(makeYouTubeUpload({ youtubeVideoId: null }));
+
+      const call = vi.mocked(toast.success).mock.calls[0]!;
+      const opts = call[1] as { action: unknown };
+      expect(opts.action).toBeUndefined();
     });
   });
 });
