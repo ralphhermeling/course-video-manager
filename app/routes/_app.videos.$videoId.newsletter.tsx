@@ -1,5 +1,7 @@
 "use client";
 
+export const handle = { fullscreen: true };
+
 import { DBFunctionsService } from "@/services/db-service.server";
 import { sortByOrder } from "@/lib/sort-by-order";
 import { runtimeLive } from "@/services/layer.server";
