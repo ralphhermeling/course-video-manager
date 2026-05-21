@@ -24,8 +24,8 @@ export function showSuccessToast(upload: uploadReducer.UploadEntry): void {
     toast.success(`"${upload.title}" uploaded to YouTube`, {
       duration: Infinity,
       action: {
-        label: "YouTube Studio",
-        onClick: () => window.open(youtubeStudioUrl, "_blank"),
+        label: "Copy YouTube Studio Link",
+        onClick: () => navigator.clipboard.writeText(youtubeStudioUrl),
       },
       cancel: {
         label: "Go to Post",
