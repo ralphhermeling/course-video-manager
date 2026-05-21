@@ -6,6 +6,7 @@ import { generateSingleYoutubeTitlePrompt } from "@/prompts/generate-single-yout
 import { generateYoutubeDescriptionPrompt } from "@/prompts/generate-youtube-description";
 import { generateSocialCaptionPrompt } from "@/prompts/generate-social-caption";
 import { generateSeoDescriptionPrompt } from "@/prompts/generate-seo-description";
+import { stripEmojis } from "@/lib/strip-emojis";
 import { Console, Effect, Schema } from "effect";
 import type { Route } from "./+types/api.videos.$videoId.generate";
 import { anthropic } from "@ai-sdk/anthropic";
@@ -124,7 +125,12 @@ export const action = async (args: Route.ActionArgs) => {
       })
     );
 
-    return Response.json({ text: result.text });
+    const text =
+      mode === "youtube-description" || mode === "social-caption"
+        ? stripEmojis(result.text)
+        : result.text;
+
+    return Response.json({ text });
   }).pipe(
     Effect.tapErrorCause((e) => Console.dir(e, { depth: null })),
     Effect.catchTag("ParseError", () => {
