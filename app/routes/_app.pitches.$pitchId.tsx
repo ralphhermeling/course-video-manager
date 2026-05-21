@@ -247,12 +247,6 @@ export default function PitchDetailRoute(props: Route.ComponentProps) {
   const { save, saveImmediate, saveState } = usePitchAutoSave(initialPitch.id);
 
   useEffect(() => {
-    if (deleteFetcher.state === "idle" && deleteFetcher.data) {
-      navigate(backLink.href);
-    }
-  }, [deleteFetcher.state, deleteFetcher.data, navigate, backLink.href]);
-
-  useEffect(() => {
     if (createVideoFetcher.state === "idle" && createVideoFetcher.data?.id) {
       navigate(`/videos/${createVideoFetcher.data.id}/edit`);
     }
@@ -314,7 +308,7 @@ export default function PitchDetailRoute(props: Route.ComponentProps) {
                 variant="destructive"
                 onSelect={() => {
                   deleteFetcher.submit(
-                    {},
+                    { redirectTo: backLink.href },
                     {
                       method: "post",
                       action: `/api/pitches/${initialPitch.id}/delete`,
