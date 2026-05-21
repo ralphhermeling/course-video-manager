@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { execSync } from "node:child_process";
 import { z } from "zod";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { noSandbox } from "@ai-hero/sandcastle/sandboxes/no-sandbox";
@@ -39,9 +40,18 @@ const result = await sandcastle.run({
   }),
 });
 
-if (result.commits.length === 0) {
+// Success is judged by whether the branch is ahead of main, not whether this
+// particular run produced commits. A rerun over an already-completed sub-issue
+// (where the prior run committed the work) should still pass.
+const commitsAheadOfMain = Number(
+  execSync("git rev-list --count origin/main..HEAD", {
+    encoding: "utf8",
+  }).trim()
+);
+
+if (commitsAheadOfMain === 0) {
   fail(
-    `Agent produced no commits while implementing sub-issue #${SUB_ISSUE_NUMBER}.`
+    `Branch has no commits ahead of \`main\` after implementing sub-issue #${SUB_ISSUE_NUMBER}.`
   );
 }
 
@@ -54,6 +64,7 @@ fs.writeFileSync(
 console.log(`\nWrote PR metadata to ${OUTPUT_DIR}`);
 console.log(`  title: ${result.output.prTitle}`);
 console.log(`  commits this run: ${result.commits.length}`);
+console.log(`  commits ahead of main: ${commitsAheadOfMain}`);
 
 function required(name: string): string {
   const value = process.env[name];
