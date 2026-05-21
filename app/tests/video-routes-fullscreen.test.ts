@@ -11,6 +11,7 @@ const VIDEO_SUB_ROUTES = [
   "_app.videos.$videoId.ai-hero.tsx",
   "_app.videos.$videoId.skills-changelog.tsx",
   "_app.videos.$videoId.newsletter.tsx",
+  "_app.videos.$videoId.write.tsx",
 ];
 
 describe("video sub-routes fullscreen handle", () => {
