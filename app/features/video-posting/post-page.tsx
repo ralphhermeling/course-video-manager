@@ -40,7 +40,6 @@ import { validateYoutubeTitle } from "./post-page-validation";
 const POST_TITLE_STORAGE_KEY = (videoId: string) => `post-title-${videoId}`;
 const POST_DESCRIPTION_STORAGE_KEY = (videoId: string) =>
   `post-description-${videoId}`;
-const POST_TWEET_STORAGE_KEY = (videoId: string) => `post-tweet-${videoId}`;
 const YOUTUBE_VIDEO_ID_STORAGE_KEY = (videoId: string) =>
   `youtube-video-id-${videoId}`;
 
@@ -55,7 +54,6 @@ export function PostPage({
   includeCourseStructure,
   clipSections,
   pitchYoutubeTitle,
-  pitchTweet,
 }: {
   videoId: string;
   isYoutubeAuthenticated: boolean;
@@ -67,7 +65,6 @@ export function PostPage({
   includeCourseStructure: boolean;
   clipSections: SectionWithWordCount[];
   pitchYoutubeTitle: string | null;
-  pitchTweet: string | null;
 }) {
   // Title and description with localStorage persistence, pitch pre-fill as fallback
   const [title, setTitle] = useState(() => {
@@ -83,14 +80,6 @@ export function PostPage({
     }
     return "";
   });
-  const [tweet, setTweet] = useState(() => {
-    if (typeof localStorage !== "undefined") {
-      const stored = localStorage.getItem(POST_TWEET_STORAGE_KEY(videoId));
-      if (stored !== null) return stored;
-    }
-    return pitchTweet ?? "";
-  });
-
   // Auto-save title and description to localStorage
   useEffect(() => {
     if (typeof localStorage !== "undefined") {
@@ -104,19 +93,13 @@ export function PostPage({
     }
   }, [description, videoId]);
 
-  useEffect(() => {
-    if (typeof localStorage !== "undefined") {
-      localStorage.setItem(POST_TWEET_STORAGE_KEY(videoId), tweet);
-    }
-  }, [tweet, videoId]);
-
   // AI generation state
   const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
   const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
 
   // Confirmation dialog state
   const [confirmOverwriteField, setConfirmOverwriteField] = useState<
-    "title" | "description" | "tweet" | null
+    "title" | "description" | null
   >(null);
   const [pendingGeneratedText, setPendingGeneratedText] = useState<string>("");
   const [currentFieldText, setCurrentFieldText] = useState<string>("");
@@ -253,8 +236,6 @@ export function PostPage({
       setTitle(pendingGeneratedText);
     } else if (confirmOverwriteField === "description") {
       setDescription(pendingGeneratedText);
-    } else if (confirmOverwriteField === "tweet") {
-      setTweet(pendingGeneratedText);
     }
     setConfirmOverwriteField(null);
     setPendingGeneratedText("");
@@ -267,18 +248,15 @@ export function PostPage({
     setCurrentFieldText("");
   };
 
-  const handleCopyFromPitch = (field: "title" | "tweet") => {
-    const pitchValue = field === "title" ? pitchYoutubeTitle : pitchTweet;
-    if (!pitchValue) return;
+  const handleCopyFromPitch = () => {
+    if (!pitchYoutubeTitle) return;
 
-    const currentValue = field === "title" ? title : tweet;
-    if (currentValue.trim()) {
-      setCurrentFieldText(currentValue);
-      setPendingGeneratedText(pitchValue);
-      setConfirmOverwriteField(field);
+    if (title.trim()) {
+      setCurrentFieldText(title);
+      setPendingGeneratedText(pitchYoutubeTitle);
+      setConfirmOverwriteField("title");
     } else {
-      if (field === "title") setTitle(pitchValue);
-      else setTweet(pitchValue);
+      setTitle(pitchYoutubeTitle);
     }
   };
 
@@ -428,7 +406,7 @@ export function PostPage({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => handleCopyFromPitch("title")}
+                  onClick={handleCopyFromPitch}
                 >
                   <CopyIcon className="h-4 w-4" />
                   Copy from Pitch
@@ -513,29 +491,6 @@ export function PostPage({
               </>
             )}
           </Button>
-        </div>
-
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="tweet">Tweet</Label>
-            {pitchTweet && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleCopyFromPitch("tweet")}
-              >
-                <CopyIcon className="h-4 w-4" />
-                Copy from Pitch
-              </Button>
-            )}
-          </div>
-          <Textarea
-            id="tweet"
-            value={tweet}
-            onChange={(e) => setTweet(e.target.value)}
-            placeholder="Enter tweet..."
-            className="min-h-[80px] resize-y"
-          />
         </div>
 
         {/* Visibility */}
