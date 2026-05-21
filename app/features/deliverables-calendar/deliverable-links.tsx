@@ -18,7 +18,7 @@ export function courseHref(id: string) {
 }
 
 export function pitchHref(id: string) {
-  return `/pitches/${id}`;
+  return `/pitches/${id}?from=deliverables`;
 }
 
 export function PriorityPill({ p }: { p: number }) {

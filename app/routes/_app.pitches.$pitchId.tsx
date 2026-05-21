@@ -36,7 +36,14 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MarkdownMonacoEditor } from "@/components/markdown-monaco-editor";
-import { data, Link, useFetcher, useNavigate } from "react-router";
+import {
+  data,
+  Link,
+  useFetcher,
+  useNavigate,
+  useSearchParams,
+} from "react-router";
+import { pitchBackLink } from "@/features/pitches/pitch-back-link";
 import type { Route } from "./+types/_app.pitches.$pitchId";
 
 export const meta: Route.MetaFunction = ({ data: loaderData }) => {
@@ -213,6 +220,8 @@ function ChannelSection({
 export default function PitchDetailRoute(props: Route.ComponentProps) {
   const { pitch: initialPitch, videos, hasExportedVideoMap } = props.loaderData;
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const backLink = pitchBackLink(searchParams.get("from"));
   const deleteFetcher = useFetcher();
   const statusFetcher = useFetcher();
   const priorityFetcher = useFetcher();
@@ -238,12 +247,6 @@ export default function PitchDetailRoute(props: Route.ComponentProps) {
   const { save, saveImmediate, saveState } = usePitchAutoSave(initialPitch.id);
 
   useEffect(() => {
-    if (deleteFetcher.state === "idle" && deleteFetcher.data) {
-      navigate("/pitches");
-    }
-  }, [deleteFetcher.state, deleteFetcher.data, navigate]);
-
-  useEffect(() => {
     if (createVideoFetcher.state === "idle" && createVideoFetcher.data?.id) {
       navigate(`/videos/${createVideoFetcher.data.id}/edit`);
     }
@@ -258,11 +261,11 @@ export default function PitchDetailRoute(props: Route.ComponentProps) {
       <div className="max-w-3xl mx-auto p-6">
         <div className="flex items-center justify-between mb-4">
           <Link
-            to="/pitches"
+            to={backLink.href}
             className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
           >
             <ArrowLeft className="w-4 h-4" />
-            Back to Pitches
+            {backLink.label}
           </Link>
           <SaveIndicator state={saveState} />
         </div>
@@ -305,7 +308,7 @@ export default function PitchDetailRoute(props: Route.ComponentProps) {
                 variant="destructive"
                 onSelect={() => {
                   deleteFetcher.submit(
-                    {},
+                    { redirectTo: backLink.href },
                     {
                       method: "post",
                       action: `/api/pitches/${initialPitch.id}/delete`,

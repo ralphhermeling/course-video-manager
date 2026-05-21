@@ -3,14 +3,23 @@ import { DBFunctionsService } from "@/services/db-service.server";
 import { runtimeLive } from "@/services/layer.server";
 import type { Route } from "./+types/api.pitches.$pitchId.delete";
 import { withDatabaseDump } from "@/services/dump-service";
-import { data } from "react-router";
+import { data, redirect } from "react-router";
 
 export const action = async (args: Route.ActionArgs) => {
   const { pitchId } = args.params;
+  const formData = await args.request.formData();
+  const redirectTo = formData.get("redirectTo");
 
   return Effect.gen(function* () {
     const db = yield* DBFunctionsService;
     yield* db.deletePitch(pitchId);
+    if (
+      typeof redirectTo === "string" &&
+      redirectTo.startsWith("/") &&
+      !redirectTo.startsWith("//")
+    ) {
+      return redirect(redirectTo);
+    }
     return data({ success: true });
   }).pipe(
     withDatabaseDump,
