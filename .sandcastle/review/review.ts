@@ -160,11 +160,33 @@ const ReviewOutput = z.object({
   summary: z.string().min(1),
   inlineComments: z
     .array(
-      z.object({
-        path: z.string().min(1),
-        line: z.number().int().positive(),
-        body: z.string().min(1),
-      })
+      z
+        .object({
+          path: z.string().min(1).optional(),
+          file: z.string().min(1).optional(),
+          line: z.number().int().positive(),
+          body: z.string().min(1).optional(),
+          comment: z.string().min(1).optional(),
+        })
+        .transform((c, ctx) => {
+          const path = c.path ?? c.file;
+          const body = c.body ?? c.comment;
+          if (!path) {
+            ctx.addIssue({
+              code: "custom",
+              message: "inline comment missing 'path' (or 'file')",
+            });
+            return z.NEVER;
+          }
+          if (!body) {
+            ctx.addIssue({
+              code: "custom",
+              message: "inline comment missing 'body' (or 'comment')",
+            });
+            return z.NEVER;
+          }
+          return { path, line: c.line, body };
+        })
     )
     .default([]),
   replies: z
