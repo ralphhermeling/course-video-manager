@@ -68,7 +68,7 @@ ${transcriptSection}${courseStructureSection}${codeSection}${chaptersSection}</d
 <the-ask>
 Generate a YouTube video description for this coding lesson.
 
-IMPORTANT: Do NOT use emojis anywhere in the description. No emojis in any section.
+Avoid using emojis anywhere in the description.
 
 The description should have the following structure:
 
