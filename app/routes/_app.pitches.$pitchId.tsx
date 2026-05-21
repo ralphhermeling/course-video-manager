@@ -44,6 +44,7 @@ import {
   useSearchParams,
 } from "react-router";
 import { pitchBackLink } from "@/features/pitches/pitch-back-link";
+import { X_POST_CHARACTER_LIMIT } from "@/features/pitches/x-character-count";
 import type { Route } from "./+types/_app.pitches.$pitchId";
 
 export const meta: Route.MetaFunction = ({ data: loaderData }) => {
@@ -385,65 +386,6 @@ export default function PitchDetailRoute(props: Route.ComponentProps) {
             </div>
           </div>
 
-          <ChannelSection icon={<Youtube className="size-4" />} title="YouTube">
-            <div className="space-y-1.5">
-              <Label>Title</Label>
-              <Textarea
-                value={youtubeTitle}
-                onChange={(e) => {
-                  setYoutubeTitle(e.target.value);
-                  handleFieldChange("youtubeTitle", e.target.value);
-                }}
-                rows={3}
-                placeholder="The title of the YouTube video"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Thumbnail</Label>
-              <Textarea
-                value={youtubeThumbnailDescription}
-                onChange={(e) => {
-                  setYoutubeThumbnailDescription(e.target.value);
-                  handleFieldChange(
-                    "youtubeThumbnailDescription",
-                    e.target.value
-                  );
-                }}
-                rows={2}
-                placeholder="Description of the YouTube thumbnail, with arrow text"
-              />
-            </div>
-          </ChannelSection>
-
-          <ChannelSection icon={<Mail className="size-4" />} title="Newsletter">
-            <div className="space-y-1.5">
-              <Label>Subject</Label>
-              <Input
-                value={newsletterTitle}
-                onChange={(e) => {
-                  setNewsletterTitle(e.target.value);
-                  handleFieldChange("newsletterTitle", e.target.value);
-                }}
-                placeholder="The subject line of the newsletter"
-              />
-            </div>
-          </ChannelSection>
-
-          <ChannelSection icon={<MessageSquare className="size-4" />} title="X">
-            <div className="space-y-1.5">
-              <Label>Post</Label>
-              <Textarea
-                value={tweet}
-                onChange={(e) => {
-                  setTweet(e.target.value);
-                  handleFieldChange("tweet", e.target.value);
-                }}
-                rows={2}
-                placeholder="The post above the video on X."
-              />
-            </div>
-          </ChannelSection>
-
           <ChannelSection icon={<Video className="size-4" />} title="Videos">
             {videos.length === 0 ? (
               <p className="text-sm text-muted-foreground">
@@ -504,6 +446,74 @@ export default function PitchDetailRoute(props: Route.ComponentProps) {
                 <Plus className="w-3.5 h-3.5 mr-1" />
                 Add video
               </Button>
+            </div>
+          </ChannelSection>
+
+          <ChannelSection icon={<Youtube className="size-4" />} title="YouTube">
+            <div className="space-y-1.5">
+              <Label>Title</Label>
+              <Textarea
+                value={youtubeTitle}
+                onChange={(e) => {
+                  setYoutubeTitle(e.target.value);
+                  handleFieldChange("youtubeTitle", e.target.value);
+                }}
+                rows={3}
+                placeholder="The title of the YouTube video"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Thumbnail</Label>
+              <Textarea
+                value={youtubeThumbnailDescription}
+                onChange={(e) => {
+                  setYoutubeThumbnailDescription(e.target.value);
+                  handleFieldChange(
+                    "youtubeThumbnailDescription",
+                    e.target.value
+                  );
+                }}
+                rows={2}
+                placeholder="Description of the YouTube thumbnail, with arrow text"
+              />
+            </div>
+          </ChannelSection>
+
+          <ChannelSection icon={<Mail className="size-4" />} title="Newsletter">
+            <div className="space-y-1.5">
+              <Label>Subject</Label>
+              <Input
+                value={newsletterTitle}
+                onChange={(e) => {
+                  setNewsletterTitle(e.target.value);
+                  handleFieldChange("newsletterTitle", e.target.value);
+                }}
+                placeholder="The subject line of the newsletter"
+              />
+            </div>
+          </ChannelSection>
+
+          <ChannelSection icon={<MessageSquare className="size-4" />} title="X">
+            <div className="space-y-1.5">
+              <Label>Post</Label>
+              <Textarea
+                value={tweet}
+                onChange={(e) => {
+                  setTweet(e.target.value);
+                  handleFieldChange("tweet", e.target.value);
+                }}
+                rows={2}
+                placeholder="The post above the video on X."
+              />
+              <p
+                className={`text-xs ${
+                  tweet.length > X_POST_CHARACTER_LIMIT
+                    ? "text-destructive"
+                    : "text-muted-foreground"
+                }`}
+              >
+                {tweet.length}/{X_POST_CHARACTER_LIMIT}
+              </p>
             </div>
           </ChannelSection>
         </div>
