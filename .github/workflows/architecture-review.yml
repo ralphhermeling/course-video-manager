@@ -51,6 +51,7 @@ jobs:
           OUTPUT_FILE: ${{ runner.temp }}/architecture_review_output.json
           TITLE_FILE: ${{ runner.temp }}/prd_title.txt
           BODY_FILE: ${{ runner.temp }}/prd_body.md
+          LABEL: source:architecture-review
         run: |
           set -euo pipefail
           status=$(jq -r '.status' "$OUTPUT_FILE")
@@ -59,11 +60,16 @@ jobs:
             exit 0
           fi
           title=$(cat "$TITLE_FILE")
+          # Ensure the provenance label exists (idempotent — succeeds if already present).
+          gh label create "$LABEL" \
+            --color "5319E7" \
+            --description "PRDs proposed by the automated architecture-review workflow" \
+            >/dev/null 2>&1 || true
           # gh issue create prints the URL on the last line.
           issue_url=$(gh issue create \
             --title "$title" \
             --body-file "$BODY_FILE" \
-            --label "source:architecture-review" | tail -n1)
+            --label "$LABEL" | tail -n1)
           issue_number=$(basename "$issue_url")
           echo "issue_url=$issue_url" >> "$GITHUB_OUTPUT"
           echo "issue_number=$issue_number" >> "$GITHUB_OUTPUT"
