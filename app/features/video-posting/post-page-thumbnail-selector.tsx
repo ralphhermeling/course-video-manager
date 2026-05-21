@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useRevalidator } from "react-router";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { CheckIcon, ImageIcon, Loader2Icon, PlusIcon } from "lucide-react";
+import { getAutoSelectThumbnailId } from "./auto-select-thumbnail";
 
 export function ThumbnailSelector({
   videoId,
@@ -17,6 +18,19 @@ export function ThumbnailSelector({
     string | null
   >(null);
   const { revalidate } = useRevalidator();
+  const autoSelectFired = useRef(false);
+
+  useEffect(() => {
+    const id = getAutoSelectThumbnailId(thumbnails);
+    if (id && !autoSelectFired.current) {
+      autoSelectFired.current = true;
+      fetch(`/api/thumbnails/${id}/select`, { method: "POST" }).then(
+        (response) => {
+          if (response.ok) revalidate();
+        }
+      );
+    }
+  }, [thumbnails, revalidate]);
 
   const handleSelectThumbnail = async (thumbnailId: string) => {
     const isCurrentlySelected = thumbnails.find(
