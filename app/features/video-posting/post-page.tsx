@@ -1,6 +1,7 @@
 "use client";
 
 import { useContext, useEffect, useState } from "react";
+import { useLocalStorage } from "@/hooks/use-local-storage";
 import { toast } from "sonner";
 import { UploadContext } from "@/features/upload-manager/upload-context";
 import { Textarea } from "@/components/ui/textarea";
@@ -66,32 +67,13 @@ export function PostPage({
   clipSections: SectionWithWordCount[];
   pitchYoutubeTitle: string | null;
 }) {
-  // Title and description with localStorage persistence, pitch pre-fill as fallback
-  const [title, setTitle] = useState(() => {
-    if (typeof localStorage !== "undefined") {
-      const stored = localStorage.getItem(POST_TITLE_STORAGE_KEY(videoId));
-      if (stored !== null) return stored;
-    }
-    return pitchYoutubeTitle ?? "";
-  });
-  const [description, setDescription] = useState(() => {
-    if (typeof localStorage !== "undefined") {
-      return localStorage.getItem(POST_DESCRIPTION_STORAGE_KEY(videoId)) ?? "";
-    }
-    return "";
-  });
-  // Auto-save title and description to localStorage
-  useEffect(() => {
-    if (typeof localStorage !== "undefined") {
-      localStorage.setItem(POST_TITLE_STORAGE_KEY(videoId), title);
-    }
-  }, [title, videoId]);
-
-  useEffect(() => {
-    if (typeof localStorage !== "undefined") {
-      localStorage.setItem(POST_DESCRIPTION_STORAGE_KEY(videoId), description);
-    }
-  }, [description, videoId]);
+  const [title, setTitle] = useLocalStorage(
+    POST_TITLE_STORAGE_KEY(videoId),
+    pitchYoutubeTitle ?? ""
+  );
+  const [description, setDescription] = useLocalStorage(
+    POST_DESCRIPTION_STORAGE_KEY(videoId)
+  );
 
   // AI generation state
   const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
