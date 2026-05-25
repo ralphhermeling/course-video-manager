@@ -54,7 +54,8 @@ function extractionResult(value: string) {
 
 function structuredError(
   rawMatched: string | undefined,
-  cause: unknown = new Error("Unexpected end of JSON input")
+  cause: unknown = new Error("Unexpected end of JSON input"),
+  sessionId: string = "sess-extract"
 ) {
   return new StructuredOutputError("extraction failed", {
     tag: "output",
@@ -62,6 +63,7 @@ function structuredError(
     cause,
     commits: [],
     branch: "feat/x",
+    sessionId,
   });
 }
 
@@ -106,9 +108,11 @@ describe("runWithExtraction", () => {
     expect(result.output).toEqual({ value: "recovered" });
     expect(mockRun).toHaveBeenCalledTimes(3);
 
-    // Both extraction attempts resume the *produce* session, not the failed one.
+    // First extraction attempt resumes the produce session; the retry resumes
+    // the *failed extraction's* own session (via error.sessionId) so the fix
+    // happens in-context.
     expect(mockRun.mock.calls[1]![0].resumeSession).toBe("sess-1");
-    expect(mockRun.mock.calls[2]![0].resumeSession).toBe("sess-1");
+    expect(mockRun.mock.calls[2]![0].resumeSession).toBe("sess-extract");
 
     const retryPrompt = mockRun.mock.calls[2]![0].prompt as string;
     expect(retryPrompt).toContain("Previous attempt failed");

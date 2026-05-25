@@ -1,11 +1,10 @@
 import {
   run,
-  StructuredOutputError,
   type OutputObjectDefinition,
   type RunOptions,
   type RunResult,
 } from "@ai-hero/sandcastle";
-import { buildRetryFeedback } from "./retry-feedback";
+import { runWithRetry } from "./run-with-retry";
 
 /**
  * Options for {@link runWithExtraction} — the standard `run()` options, but with
@@ -36,36 +35,35 @@ export interface RunWithExtractionOptions<T> extends Omit<
  * The brittle part of structured output is asking the agent to both *do the
  * work* and *emit rigid JSON* in a single turn — it frequently returns
  * malformed JSON or omits the `<output>` tag, and a single failure aborts the
- * whole run. This wrapper splits the two concerns:
+ * whole run. This wrapper splits the two concerns, which matters when the
+ * produce phase has side effects we must not repeat (commits, issue creation):
  *
  * 1. **Produce.** Run the agent on `prompt`/`promptFile` with NO `output`
  *    definition, so `run()` never throws on extraction and we keep the
  *    resumable `sessionId`. The produce prompt should contain no JSON-emission
  *    instructions — it just does the work and reasons in prose.
  * 2. **Extract.** Resume that session with `extractionPrompt` and the `output`
- *    definition. This turn does nothing but transcribe what the agent already
- *    did into the schema. On `StructuredOutputError`, re-resume the *produce*
- *    session (its id is stable; a thrown extraction run hands back no id) and
- *    feed the previous attempt's raw output + validation error back into the
- *    prompt, up to `maxAttempts` times.
+ *    definition, retrying via {@link runWithRetry}: the first attempt resumes
+ *    the produce session; any retry resumes the *failed extraction's* own
+ *    session with feedback, so the correction happens in-context without
+ *    re-doing the work or re-sending the prompt.
  *
  * Returns the produce run's result (commits, branch, stdout) with the
  * extraction run's `output` — extraction must not commit, so the produce
  * commits are the source of truth for callers that inspect `commits`.
  *
- * Throws the final {@link StructuredOutputError} if every attempt fails, which
+ * Throws the final `StructuredOutputError` if every attempt fails, which
  * mirrors the pre-wrapper failure path (the workflow marks the PR/issue
  * blocked).
+ *
+ * For side-effect-free scripts where the output *is* the work, prefer
+ * {@link runWithRetry} directly — there's no work to preserve, so the produce
+ * pass is pure overhead.
  */
 export async function runWithExtraction<T>(
   options: RunWithExtractionOptions<T>
 ): Promise<RunResult & { output: T }> {
-  const {
-    output,
-    extractionPrompt,
-    maxAttempts = 3,
-    ...produceOptions
-  } = options;
+  const { output, extractionPrompt, maxAttempts, ...produceOptions } = options;
 
   const produce = await run(produceOptions);
 
@@ -78,33 +76,17 @@ export async function runWithExtraction<T>(
     );
   }
 
-  let lastError: StructuredOutputError | undefined;
+  const extraction = await runWithRetry({
+    ...produceOptions,
+    name: produceOptions.name ? `${produceOptions.name} (extract)` : undefined,
+    promptFile: undefined,
+    prompt: extractionPrompt,
+    resumeSession: sessionId,
+    output,
+    maxAttempts,
+  });
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const prompt = lastError
-      ? `${extractionPrompt}\n\n${buildRetryFeedback(lastError, attempt, maxAttempts)}`
-      : extractionPrompt;
-
-    try {
-      const extraction = await run({
-        ...produceOptions,
-        name: produceOptions.name
-          ? `${produceOptions.name} (extract)`
-          : undefined,
-        promptFile: undefined,
-        prompt,
-        resumeSession: sessionId,
-        output,
-      });
-      return { ...produce, output: extraction.output };
-    } catch (error) {
-      if (error instanceof StructuredOutputError) {
-        lastError = error;
-        continue;
-      }
-      throw error;
-    }
-  }
-
-  throw lastError;
+  // Commits/branch come from the produce run (extraction does no work); only
+  // the structured output comes from the extraction pass.
+  return { ...produce, output: extraction.output };
 }
