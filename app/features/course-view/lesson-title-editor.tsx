@@ -114,7 +114,7 @@ export function LessonTitleEditor({
           </span>
         )}
         <input
-          className="text-sm font-medium bg-transparent border-b border-foreground outline-none min-w-0"
+          className="text-sm font-normal bg-transparent border-b border-foreground outline-none min-w-0"
           size={Math.max(titleValue.length, 1)}
           value={titleValue}
           autoFocus
@@ -146,7 +146,8 @@ export function LessonTitleEditor({
   return (
     <span
       className={cn(
-        "text-sm font-medium",
+        "text-sm font-normal",
+        !showGhostStyle && "text-foreground/90",
         showGhostStyle && "text-muted-foreground/70 italic",
         !isReadOnly && "cursor-pointer hover:underline"
       )}

@@ -266,7 +266,12 @@ export function SectionGrid({
           items={displaySections.map((s) => s.id)}
           strategy={rectSortingStrategy}
         >
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div
+            className={cn(
+              "grid grid-cols-1 gap-8",
+              viewMode === "compact" ? "lg:grid-cols-3" : "lg:grid-cols-2"
+            )}
+          >
             {displaySections.map((section) => {
               const lessons = section.lessons;
 
@@ -283,14 +288,28 @@ export function SectionGrid({
               const showGhostSectionStyle = isGhostSection && !isGhostCourse;
 
               return (
-                <SortableSectionItem key={section.id} id={section.id}>
+                <SortableSectionItem
+                  key={section.id}
+                  id={section.id}
+                  compact={viewMode === "compact"}
+                >
                   {(dragHandleListeners) => (
                     <>
                       <ContextMenu>
                         <ContextMenuTrigger asChild>
                           <div className="cursor-context-menu">
-                            <div className="border-b bg-muted/30">
-                              <div className="px-4 py-3">
+                            <div
+                              className={cn(
+                                viewMode !== "compact" && "border-b bg-muted/30"
+                              )}
+                            >
+                              <div
+                                className={
+                                  viewMode === "compact"
+                                    ? "px-2 py-1"
+                                    : "px-4 py-3"
+                                }
+                              >
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-2">
                                     {!isReadOnly && (
@@ -357,7 +376,11 @@ export function SectionGrid({
                             </div>
                             {(!collapsedSections.has(section.id) ||
                               searchQuery) && (
-                              <div className="p-2">
+                              <div
+                                className={
+                                  viewMode === "compact" ? "px-2 py-1" : "p-2"
+                                }
+                              >
                                 <DndContext
                                   sensors={sensors}
                                   collisionDetection={closestCenter}

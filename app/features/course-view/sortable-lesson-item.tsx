@@ -96,8 +96,6 @@ export function SortableLessonItem({
   const isGhost = lesson.fsStatus === "ghost";
   const showGhostStyle = isGhost && !isGhostCourse;
 
-  const [videosExpanded, setVideosExpanded] = useState(false);
-
   const currentDescription = lesson.description ?? "";
   const [editingDesc, setEditingDesc] = useState(false);
   const [descValue, setDescValue] = useState(lesson.description || "");
@@ -205,12 +203,11 @@ export function SortableLessonItem({
   return (
     <div ref={setNodeRef} style={style} {...dragTargetHandlers}>
       {!hideAnchor && <a id={lesson.id} />}
-      {lessonIndex > 0 && <Separator className="my-1" />}
+      {lessonIndex > 0 && !compact && <Separator className="my-1" />}
       <div
         className={cn(
-          "rounded-md px-2 py-2 group transition-shadow",
-          showGhostStyle &&
-            "border border-dashed border-muted-foreground/30 bg-muted/20",
+          "rounded-md px-2 group transition-shadow",
+          compact ? "py-1" : "py-2",
           dragClassName
         )}
       >
@@ -370,8 +367,7 @@ export function SortableLessonItem({
             isReadOnly={isReadOnly}
             isGhostCourse={isGhostCourse}
             compact={compact}
-            videosExpanded={videosExpanded}
-            onToggleVideos={() => setVideosExpanded((v) => !v)}
+            navigate={navigate}
             allSections={allSections}
             dispatch={dispatch}
             submitEvent={submitEvent}
@@ -433,7 +429,7 @@ export function SortableLessonItem({
             }}
           />
         )}
-        {(!compact || videosExpanded) && (
+        {!compact && (
           <div className="ml-5 mt-3">
             <VideoThumbnailGrid
               videos={lesson.videos}

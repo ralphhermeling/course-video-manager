@@ -160,7 +160,7 @@ export function DependencySelector({
       <PopoverTrigger asChild>
         <button
           ref={buttonRef}
-          className={`text-xs flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-muted ${
+          className={`text-xs flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-muted shrink-0 whitespace-nowrap ${
             hasAnyViolation
               ? "bg-amber-500/20 text-amber-600"
               : "text-muted-foreground hover:text-foreground"
@@ -168,14 +168,16 @@ export function DependencySelector({
           title={title}
           onPointerDown={handlePointerDown}
         >
-          <Link2 className="w-3 h-3" />
+          <Link2 className="w-3 h-3 shrink-0" />
           {hasDependencies && (
             <>
               {dependencies
                 .map((id) => allLessons.find((l) => l.id === id)?.number)
                 .filter(Boolean)
                 .join(", ")}
-              {hasAnyViolation && <AlertTriangle className="w-3 h-3" />}
+              {hasAnyViolation && (
+                <AlertTriangle className="w-3 h-3 shrink-0" />
+              )}
             </>
           )}
         </button>

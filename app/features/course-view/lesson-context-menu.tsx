@@ -9,11 +9,11 @@ import {
 import { courseViewReducer } from "@/features/course-view/course-view-reducer";
 import type { CourseEditorEvent } from "@/services/course-editor-service";
 import type { Lesson, Section } from "./course-view-types";
+import type { useNavigate } from "react-router";
 import {
   ArrowRightLeft,
   BookOpen,
-  Eye,
-  EyeOff,
+  FileVideo,
   Ghost,
   ListTodo,
   PencilIcon,
@@ -28,8 +28,7 @@ export function LessonContextMenuContent({
   isReadOnly,
   isGhostCourse,
   compact,
-  videosExpanded,
-  onToggleVideos,
+  navigate,
   allSections,
   dispatch,
   submitEvent,
@@ -41,8 +40,7 @@ export function LessonContextMenuContent({
   isReadOnly: boolean;
   isGhostCourse?: boolean;
   compact?: boolean;
-  videosExpanded: boolean;
-  onToggleVideos: () => void;
+  navigate: ReturnType<typeof useNavigate>;
   allSections: { id: string; path: string }[];
   dispatch: (action: courseViewReducer.Action) => void;
   submitEvent: (event: CourseEditorEvent) => void;
@@ -52,14 +50,15 @@ export function LessonContextMenuContent({
     <ContextMenuContent>
       {compact && lesson.videos.length > 0 && (
         <>
-          <ContextMenuItem onSelect={onToggleVideos}>
-            {videosExpanded ? (
-              <EyeOff className="w-4 h-4" />
-            ) : (
-              <Eye className="w-4 h-4" />
-            )}
-            {videosExpanded ? "Hide Videos" : "Show Videos"}
-          </ContextMenuItem>
+          {lesson.videos.map((video) => (
+            <ContextMenuItem
+              key={video.id}
+              onSelect={() => navigate(`/videos/${video.id}/edit`)}
+            >
+              <FileVideo className="w-4 h-4" />
+              {video.path}
+            </ContextMenuItem>
+          ))}
           {!isReadOnly && <ContextMenuSeparator />}
         </>
       )}

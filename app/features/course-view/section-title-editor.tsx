@@ -144,6 +144,7 @@ export function SectionTitleEditor({
   onStartEditing: () => void;
 }) {
   const handledRef = useRef(false);
+  const titleClass = "text-base font-semibold";
 
   if (!isReadOnly && editingTitle) {
     return (
@@ -157,7 +158,10 @@ export function SectionTitleEditor({
           </span>
         )}
         <input
-          className="font-medium text-sm bg-transparent border-b border-foreground outline-none flex-1 min-w-0"
+          className={cn(
+            "bg-transparent border-b border-foreground outline-none flex-1 min-w-0",
+            titleClass
+          )}
           value={titleValue}
           autoFocus
           onChange={(e) => onTitleValueChange(e.target.value)}
@@ -188,7 +192,7 @@ export function SectionTitleEditor({
   return (
     <span
       className={cn(
-        "font-medium text-sm",
+        titleClass,
         showGhostStyle && "text-muted-foreground/70 italic",
         !isReadOnly && "cursor-pointer hover:underline"
       )}

@@ -1,12 +1,15 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
 
 export function SortableSectionItem({
   id,
+  compact,
   children,
 }: {
   id: string;
+  compact?: boolean;
   children: (
     dragHandleListeners: ReturnType<typeof useSortable>["listeners"]
   ) => ReactNode;
@@ -31,7 +34,7 @@ export function SortableSectionItem({
       ref={setNodeRef}
       style={style}
       {...attributes}
-      className="rounded-lg border bg-card"
+      className={cn(!compact && "rounded-lg border bg-card")}
     >
       {children(listeners)}
     </div>
