@@ -14,9 +14,11 @@ import {
   FileVideo,
   Ghost,
   GitBranch,
+  List,
   ListChecks,
   MessageCircle,
   Play,
+  Rows3,
   Search,
   X,
 } from "lucide-react";
@@ -90,6 +92,8 @@ export function FilterBar({
   fsStatusFilter,
   fsStatusCounts,
   searchQuery,
+  viewMode,
+  onToggleViewMode,
   dispatch,
   isRealCourse,
 }: {
@@ -98,6 +102,8 @@ export function FilterBar({
   fsStatusFilter: string | null;
   fsStatusCounts: { ghost: number; real: number; todo: number };
   searchQuery: string;
+  viewMode: "expanded" | "compact";
+  onToggleViewMode: () => void;
   dispatch: (action: courseViewReducer.Action) => void;
   isRealCourse: boolean;
 }) {
@@ -272,6 +278,28 @@ export function FilterBar({
             </button>
           </>
         )}
+
+        <div className="ml-auto">
+          <button
+            className={`flex items-center justify-center w-7 h-7 rounded transition-colors ${
+              viewMode === "compact"
+                ? "bg-foreground/10 text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+            onClick={onToggleViewMode}
+            title={
+              viewMode === "compact"
+                ? "Switch to expanded view"
+                : "Switch to compact view"
+            }
+          >
+            {viewMode === "compact" ? (
+              <List className="w-4 h-4" />
+            ) : (
+              <Rows3 className="w-4 h-4" />
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );
