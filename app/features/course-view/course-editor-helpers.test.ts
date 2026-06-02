@@ -1,10 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  createLessonDragHandler,
+  resolveLessonDrop,
+  computeReorderIds,
   computeFsStatusCounts,
   computeCourseStats,
 } from "./course-editor-helpers";
-import type { CourseEditorEvent } from "@/services/course-editor-service";
 import type { DragEndEvent } from "@dnd-kit/core";
 import type { Section, Lesson } from "./course-view-types";
 
@@ -44,18 +44,40 @@ function makeSection(
 
 const noFilters = { priorityFilter: [], iconFilter: [], searchQuery: "" };
 
-// Helper to create a fake DragEndEvent
-function makeDragEndEvent(activeId: string, overId: string): DragEndEvent {
+// Fake DragEndEvent. `activeRect`/`overRect` default to a no-translation drag
+// (the dragged card's centre resolves above the hovered lesson → insert-before).
+function makeDragEndEvent(
+  activeId: string,
+  overId: string,
+  opts: {
+    activeRect?: { top: number; height: number };
+    overRect?: { top: number; height: number };
+  } = {}
+): DragEndEvent {
   return {
     active: {
       id: activeId,
       data: { current: undefined },
-      rect: { current: { initial: null, translated: null } },
+      rect: {
+        current: {
+          initial: null,
+          translated: opts.activeRect
+            ? { top: opts.activeRect.top, height: opts.activeRect.height }
+            : null,
+        },
+      },
     },
     over: {
       id: overId,
       data: { current: undefined },
-      rect: { left: 0, top: 0, bottom: 0, right: 0, width: 0, height: 0 },
+      rect: {
+        left: 0,
+        right: 0,
+        top: opts.overRect?.top ?? 0,
+        bottom: 0,
+        width: 0,
+        height: opts.overRect?.height ?? 0,
+      },
     },
     activatorEvent: {} as Event,
     collisions: null,
@@ -63,150 +85,76 @@ function makeDragEndEvent(activeId: string, overId: string): DragEndEvent {
   } as unknown as DragEndEvent;
 }
 
-describe("createLessonDragHandler", () => {
-  it("reorders lessons and submits the new order", () => {
-    const submitEvent = vi.fn();
-    const handler = createLessonDragHandler(submitEvent);
+const dropSections = [
+  { id: "s1", lessons: [{ id: "a" }, { id: "b" }, { id: "c" }] },
+  { id: "s2", lessons: [{ id: "x" }, { id: "y" }] },
+];
 
-    const lessons = [
-      { id: "db-1", path: "first", title: "First" },
-      { id: "db-2", path: "second", title: "Second" },
-      { id: "db-3", path: "third", title: "Third" },
-    ];
+describe("resolveLessonDrop", () => {
+  it("returns null when over is null", () => {
+    const event = {
+      active: { id: "a", rect: { current: { translated: null } } },
+      over: null,
+    } as unknown as DragEndEvent;
+    expect(resolveLessonDrop(event, dropSections)).toBeNull();
+  });
 
-    const dragEnd = handler("section-1", lessons);
-    dragEnd(makeDragEndEvent("db-1", "db-3"));
+  it("appends when dropping over a section container", () => {
+    expect(
+      resolveLessonDrop(makeDragEndEvent("a", "s2"), dropSections)
+    ).toEqual({ targetSectionId: "s2", beforeLessonId: null });
+  });
 
-    expect(submitEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "reorder-lessons",
-        sectionId: "section-1",
-      })
+  it("inserts before the hovered lesson when dragged above its centre", () => {
+    expect(resolveLessonDrop(makeDragEndEvent("a", "y"), dropSections)).toEqual(
+      {
+        targetSectionId: "s2",
+        beforeLessonId: "y",
+      }
     );
   });
 
-  it("submits correct new lesson order after drag", () => {
-    const submitEvent = vi.fn();
-    const handler = createLessonDragHandler(submitEvent);
-
-    const lessons = [
-      { id: "db-1", path: "first", title: "First" },
-      { id: "db-2", path: "second", title: "Second" },
-      { id: "db-3", path: "third", title: "Third" },
-    ];
-
-    // Drag "db-1" to position of "db-3" → results in [second, third, first]
-    const dragEnd = handler("section-1", lessons);
-    dragEnd(makeDragEndEvent("db-1", "db-3"));
-
-    const event = submitEvent.mock.calls[0]![0] as CourseEditorEvent & {
-      type: "reorder-lessons";
-      lessonIds: string[];
-    };
-    expect(event.type).toBe("reorder-lessons");
-    expect(event.lessonIds).toEqual(["db-2", "db-3", "db-1"]);
+  it("inserts after the hovered lesson when dragged below its centre", () => {
+    // active centre 110 > over (x) centre 10 → after x → anchored before y
+    const event = makeDragEndEvent("a", "x", {
+      activeRect: { top: 100, height: 20 },
+      overRect: { top: 0, height: 20 },
+    });
+    expect(resolveLessonDrop(event, dropSections)).toEqual({
+      targetSectionId: "s2",
+      beforeLessonId: "y",
+    });
   });
 
-  it("returns without submitting when active and over are the same", () => {
-    const submitEvent = vi.fn();
-    const handler = createLessonDragHandler(submitEvent);
-    const lessons = [{ id: "db-1", path: "first", title: "First" }];
+  it("appends when dragged below the last lesson", () => {
+    const event = makeDragEndEvent("a", "y", {
+      activeRect: { top: 100, height: 20 },
+      overRect: { top: 0, height: 20 },
+    });
+    expect(resolveLessonDrop(event, dropSections)).toEqual({
+      targetSectionId: "s2",
+      beforeLessonId: null,
+    });
+  });
+});
 
-    const dragEnd = handler("section-1", lessons);
-    dragEnd(makeDragEndEvent("db-1", "db-1"));
+describe("computeReorderIds", () => {
+  const lessons = [{ id: "a" }, { id: "b" }, { id: "c" }];
 
-    expect(submitEvent).not.toHaveBeenCalled();
+  it("moves a lesson before an anchor", () => {
+    expect(computeReorderIds(lessons, "c", "a")).toEqual(["c", "a", "b"]);
   });
 
-  it("returns without submitting when over is null", () => {
-    const submitEvent = vi.fn();
-    const handler = createLessonDragHandler(submitEvent);
-    const lessons = [{ id: "db-1", path: "first", title: "First" }];
-
-    const dragEnd = handler("section-1", lessons);
-    dragEnd({
-      active: { id: "db-1" },
-      over: null,
-      activatorEvent: {} as Event,
-      collisions: null,
-      delta: { x: 0, y: 0 },
-    } as unknown as DragEndEvent);
-
-    expect(submitEvent).not.toHaveBeenCalled();
+  it("appends when beforeLessonId is null", () => {
+    expect(computeReorderIds(lessons, "a", null)).toEqual(["b", "c", "a"]);
   });
 
-  it("returns without submitting when active ID is not found", () => {
-    const submitEvent = vi.fn();
-    const handler = createLessonDragHandler(submitEvent);
-    const lessons = [
-      { id: "db-1", path: "first", title: "First" },
-      { id: "db-2", path: "second", title: "Second" },
-    ];
-
-    const dragEnd = handler("section-1", lessons);
-    dragEnd(makeDragEndEvent("nonexistent", "db-2"));
-
-    expect(submitEvent).not.toHaveBeenCalled();
+  it("returns null when anchoring on itself", () => {
+    expect(computeReorderIds(lessons, "a", "a")).toBeNull();
   });
 
-  it("returns without submitting when over ID is not found", () => {
-    const submitEvent = vi.fn();
-    const handler = createLessonDragHandler(submitEvent);
-    const lessons = [{ id: "db-1", path: "first", title: "First" }];
-
-    const dragEnd = handler("section-1", lessons);
-    dragEnd(makeDragEndEvent("db-1", "nonexistent"));
-
-    expect(submitEvent).not.toHaveBeenCalled();
-  });
-
-  it("returns without submitting on empty lessons array", () => {
-    const submitEvent = vi.fn();
-    const handler = createLessonDragHandler(submitEvent);
-
-    const dragEnd = handler("section-1", []);
-    dragEnd(makeDragEndEvent("db-1", "db-2"));
-
-    expect(submitEvent).not.toHaveBeenCalled();
-  });
-
-  it("handles two-element reorder correctly", () => {
-    const submitEvent = vi.fn();
-    const handler = createLessonDragHandler(submitEvent);
-
-    const lessons = [
-      { id: "a", path: "first", title: "First" },
-      { id: "b", path: "second", title: "Second" },
-    ];
-
-    const dragEnd = handler("section-1", lessons);
-    dragEnd(makeDragEndEvent("a", "b"));
-
-    const event = submitEvent.mock.calls[0]![0] as CourseEditorEvent & {
-      type: "reorder-lessons";
-      lessonIds: string[];
-    };
-    expect(event.lessonIds).toEqual(["b", "a"]);
-  });
-
-  it("handles dragging last element to first position", () => {
-    const submitEvent = vi.fn();
-    const handler = createLessonDragHandler(submitEvent);
-
-    const lessons = [
-      { id: "a", path: "first", title: "First" },
-      { id: "b", path: "second", title: "Second" },
-      { id: "c", path: "third", title: "Third" },
-    ];
-
-    const dragEnd = handler("section-1", lessons);
-    dragEnd(makeDragEndEvent("c", "a"));
-
-    const event = submitEvent.mock.calls[0]![0] as CourseEditorEvent & {
-      type: "reorder-lessons";
-      lessonIds: string[];
-    };
-    expect(event.lessonIds).toEqual(["c", "a", "b"]);
+  it("returns null when the order is unchanged", () => {
+    expect(computeReorderIds(lessons, "a", "b")).toBeNull();
   });
 });
 

@@ -4,9 +4,13 @@
 //
 // The lines are MEASURED from the rendered icon positions rather than drawn at a
 // fixed pixel height: a lesson's row height changes when its title wraps to two
-// lines, so any hard-coded segment height drifts off the icon centres. A
-// ResizeObserver re-measures on every reflow, keeping each segment pinned exactly
-// between the two icon centres it connects.
+// lines, so any hard-coded segment height drifts off the icon centres.
+//
+// Measuring is timing-sensitive: on first load the rows aren't positioned yet
+// (streamed data, web-font swap, thumbnails still loading), so a one-shot measure
+// finds collapsed rects and draws nothing. The spine handles this with a bounded
+// per-frame settle loop that re-measures until every pair resolves and holds
+// steady, then a ResizeObserver re-measures on later reflows. See docs/adr/0010.
 
 import { cn } from "@/lib/utils";
 import {
@@ -39,9 +43,11 @@ type Segment = { x: number; top: number; height: number };
 function MeasuredSpine({
   containerRef,
   pairs,
+  revalidateKey,
 }: {
   containerRef: RefObject<HTMLDivElement | null>;
   pairs: [string, string][];
+  revalidateKey: string;
 }) {
   const [segments, setSegments] = useState<Segment[]>([]);
   const pairsKey = pairs.map((p) => p.join(">")).join("|");
@@ -51,11 +57,12 @@ function MeasuredSpine({
     if (!container) return;
 
     let cancelled = false;
-    let raf1 = 0;
-    let raf2 = 0;
+    let settleRaf = 0;
+    let scheduled = 0;
 
-    const measure = () => {
-      if (cancelled) return;
+    // Compute the segments for the current layout. A pair resolves only when
+    // both icons are present and there is a positive gap between them.
+    const computeSegments = (): Segment[] => {
       const base = container.getBoundingClientRect();
       const next: Segment[] = [];
       for (const [a, b] of pairs) {
@@ -73,35 +80,71 @@ function MeasuredSpine({
         const height = rb.top - base.top - top;
         if (height > 0) next.push({ x, top, height });
       }
-      setSegments(next);
+      return next;
     };
 
-    // Measure now, then again after layout settles. The synchronous pass can
-    // run before rows reach their final positions (streamed data, web-font
-    // swap, loading thumbnails) — that momentarily collapses the icon rects,
-    // making every segment height <= 0 so the whole spine is dropped. Nothing
-    // would then re-trigger it, because the container's own box never changed.
-    // Re-measuring on the next frames and on font load recovers the line.
-    measure();
-    raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(measure);
-    });
-    if (typeof document !== "undefined" && document.fonts?.ready) {
-      document.fonts.ready.then(measure).catch(() => {});
-    }
+    // Only push to state when the result actually changed, so the settle loop
+    // and the observers below don't trigger needless re-renders.
+    let lastSerialized = "";
+    const apply = (): Segment[] => {
+      const next = computeSegments();
+      const serialized = JSON.stringify(next);
+      if (serialized !== lastSerialized) {
+        lastSerialized = serialized;
+        setSegments(next);
+      }
+      return next;
+    };
 
-    const ro = new ResizeObserver(measure);
+    // First-load settle loop. A single measure routinely runs before the rows
+    // are positioned — on first paint the data may still be streaming in, the
+    // web font may not have swapped, and thumbnails are still loading — so the
+    // icon rects are collapsed and every segment is dropped. Rather than fire a
+    // couple of speculative re-measures and hope one lands, poll each frame
+    // until every pair resolves to a drawable segment AND the result holds
+    // steady for a few frames. Capped so a pair that can never resolve (e.g. an
+    // icon that isn't rendered) doesn't spin forever.
+    const SETTLE_CAP = 120; // ~2s at 60fps
+    let frames = 0;
+    let stableFrames = 0;
+    const settle = () => {
+      if (cancelled) return;
+      const before = lastSerialized;
+      const next = apply();
+      const resolvedAll = next.length === pairs.length;
+      stableFrames =
+        resolvedAll && lastSerialized === before ? stableFrames + 1 : 0;
+      frames += 1;
+      if (stableFrames < 3 && frames < SETTLE_CAP) {
+        settleRaf = requestAnimationFrame(settle);
+      }
+    };
+    settle();
+
+    // Coalesce observer-driven re-measures into a single frame so a burst of
+    // reflows only measures once. These cover changes after the initial settle:
+    // a title rewraps, the window resizes, a late image shifts the rows.
+    const scheduleMeasure = () => {
+      cancelAnimationFrame(scheduled);
+      scheduled = requestAnimationFrame(() => apply());
+    };
+
+    const ro = new ResizeObserver(scheduleMeasure);
     ro.observe(container);
-    window.addEventListener("resize", measure);
+    window.addEventListener("resize", scheduleMeasure);
     return () => {
       cancelled = true;
-      cancelAnimationFrame(raf1);
-      cancelAnimationFrame(raf2);
+      cancelAnimationFrame(settleRaf);
+      cancelAnimationFrame(scheduled);
       ro.disconnect();
-      window.removeEventListener("resize", measure);
+      window.removeEventListener("resize", scheduleMeasure);
     };
+    // The effect re-runs (restarting the settle loop) on any change to the
+    // section's rendered items via revalidateKey — an in-place reorder leaves
+    // spinePairs and the container box unchanged, so neither pairsKey nor the
+    // ResizeObserver would otherwise fire. See docs/adr/0010.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [containerRef, pairsKey]);
+  }, [containerRef, pairsKey, revalidateKey]);
 
   return (
     <div className="pointer-events-none absolute inset-0">
@@ -121,10 +164,12 @@ function MeasuredSpine({
 // filter), in which case no overlay renders.
 export function CompactLessonList({
   pairs,
+  revalidateKey,
   className,
   children,
 }: {
   pairs: [string, string][];
+  revalidateKey: string;
   className?: string;
   children: ReactNode;
 }) {
@@ -132,7 +177,13 @@ export function CompactLessonList({
   return (
     <div ref={ref} className={cn("relative", className)}>
       {children}
-      {pairs.length > 0 && <MeasuredSpine containerRef={ref} pairs={pairs} />}
+      {pairs.length > 0 && (
+        <MeasuredSpine
+          containerRef={ref}
+          pairs={pairs}
+          revalidateKey={revalidateKey}
+        />
+      )}
     </div>
   );
 }

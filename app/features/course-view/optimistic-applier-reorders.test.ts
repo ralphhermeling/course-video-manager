@@ -306,10 +306,17 @@ describe("applyOptimisticEvent — reorders", () => {
       ).toEqual(["l2"]);
     });
 
-    it("preserves the lesson object reference after move", () => {
-      const lesson1 = makeLesson({ id: "l1" });
-      const section1 = makeSection({ id: "s1" }, [lesson1]);
-      const section2 = makeSection({ id: "s2" }, []);
+    it("renumbers the moved lesson and source as part of the cascade", () => {
+      // Both sections stay real (no materialize/dematerialize): a plain
+      // cross-section move that still renumbers the moved lesson and the
+      // source's remaining lessons. See docs/adr/0011-shared-lesson-move-planner.
+      const section1 = makeSection({ id: "s1", path: "01-intro" }, [
+        makeLesson({ id: "l1", path: "01.01-a", order: 0 }),
+        makeLesson({ id: "keep", path: "01.02-b", order: 1 }),
+      ]);
+      const section2 = makeSection({ id: "s2", path: "02-next" }, [
+        makeLesson({ id: "existing", path: "02.01-c", order: 0 }),
+      ]);
       const loaderData = makeLoaderData([section1, section2]);
 
       const event: CourseEditorEvent = {
@@ -320,7 +327,40 @@ describe("applyOptimisticEvent — reorders", () => {
 
       const result = applyOptimisticEvent(loaderData, event);
 
-      expect(result.selectedCourse!.sections[1]!.lessons[0]).toBe(lesson1);
+      const target = result.selectedCourse!.sections[1]!;
+      // Appended to the end of the target, renumbered to its slot.
+      expect(target.lessons.map((l) => l.id)).toEqual(["existing", "l1"]);
+      expect(target.lessons[1]!.path).toBe("02.02-a");
+      // Source closed its gap: keep 01.02 → 01.01.
+      const source = result.selectedCourse!.sections[0]!;
+      expect(source.lessons.map((l) => l.id)).toEqual(["keep"]);
+      expect(source.lessons[0]!.path).toBe("01.01-b");
+    });
+
+    it("inserts before the drop anchor when beforeLessonId is set", () => {
+      const section1 = makeSection({ id: "s1", path: "01-intro" }, [
+        makeLesson({ id: "l1", path: "01.01-a", order: 0 }),
+        makeLesson({ id: "keep", path: "01.02-b", order: 1 }),
+      ]);
+      const section2 = makeSection({ id: "s2", path: "02-next" }, [
+        makeLesson({ id: "t1", path: "02.01-c", order: 0 }),
+        makeLesson({ id: "t2", path: "02.02-d", order: 1 }),
+      ]);
+      const loaderData = makeLoaderData([section1, section2]);
+
+      const event: CourseEditorEvent = {
+        type: "move-lesson-to-section",
+        lessonId: "l1",
+        targetSectionId: "s2",
+        beforeLessonId: "t2",
+      };
+
+      const result = applyOptimisticEvent(loaderData, event);
+
+      const target = result.selectedCourse!.sections[1]!;
+      expect(target.lessons.map((l) => l.id)).toEqual(["t1", "l1", "t2"]);
+      expect(target.lessons[1]!.path).toBe("02.02-a");
+      expect(target.lessons[2]!.path).toBe("02.03-d");
     });
 
     it("returns loaderData unchanged when lesson is not found", () => {
@@ -354,11 +394,19 @@ describe("applyOptimisticEvent — reorders", () => {
       expect(result).toBe(loaderData);
     });
 
-    it("does not affect unrelated sections", () => {
-      const lesson1 = makeLesson({ id: "l1" });
-      const section1 = makeSection({ id: "s1" }, [lesson1]);
-      const section2 = makeSection({ id: "s2" }, []);
-      const section3 = makeSection({ id: "s3" }, [makeLesson({ id: "l3" })]);
+    it("leaves sections outside the cascade untouched by reference", () => {
+      // A move that changes no section's realness must not renumber sections,
+      // so a truly unrelated section keeps its reference.
+      const section1 = makeSection({ id: "s1", path: "01-intro" }, [
+        makeLesson({ id: "l1", path: "01.01-a", order: 0 }),
+        makeLesson({ id: "keep", path: "01.02-b", order: 1 }),
+      ]);
+      const section2 = makeSection({ id: "s2", path: "02-next" }, [
+        makeLesson({ id: "existing", path: "02.01-c", order: 0 }),
+      ]);
+      const section3 = makeSection({ id: "s3", path: "03-other" }, [
+        makeLesson({ id: "l3", path: "03.01-d", order: 0 }),
+      ]);
       const loaderData = makeLoaderData([section1, section2, section3]);
 
       const event: CourseEditorEvent = {

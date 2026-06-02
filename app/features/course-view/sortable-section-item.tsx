@@ -21,7 +21,7 @@ export function SortableSectionItem({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id });
+  } = useSortable({ id, data: { type: "section" } });
 
   const style = {
     transform: CSS.Transform.toString(transform),

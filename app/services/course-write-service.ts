@@ -11,14 +11,9 @@ import {
   parseLessonPath,
   buildLessonPath,
 } from "./lesson-path-service";
-import {
-  parseSectionPath,
-  titleFromSlug,
-  buildSectionPath,
-  sectionHasRealLessons,
-  sectionSlugFromPath,
-} from "./section-path-service";
+import { parseSectionPath, titleFromSlug } from "./section-path-service";
 import { createSectionOps } from "./course-write-service.helpers";
+import { planLessonMove } from "./lesson-move-planner";
 import { createMaterializeOps } from "./course-write-materialize-ops";
 import { CourseWriteError } from "./course-write-service.types";
 import { CourseRepoSyncValidationService } from "./course-repo-sync-validation";
@@ -398,151 +393,105 @@ export class CourseWriteService extends Effect.Service<CourseWriteService>()(
 
       const moveToSection = Effect.fn("moveToSection")(function* (
         lessonId: string,
-        targetSectionId: string
+        targetSectionId: string,
+        beforeLessonId: string | null = null
       ) {
         const lesson =
           yield* lessonSectionOps.getLessonWithHierarchyById(lessonId);
-        const targetLessons =
-          yield* lessonSectionOps.getLessonsBySectionId(targetSectionId);
-        const maxOrder =
-          targetLessons.length > 0
-            ? Math.max(...targetLessons.map((l) => l.order))
-            : 0;
-
-        // Ghost lesson: DB-only move — skip filesystem validation entirely
-        if (lesson.fsStatus === "ghost") {
-          yield* lessonSectionOps.updateLesson(lessonId, {
-            sectionId: targetSectionId,
-          });
-          yield* lessonSectionOps.updateLessonOrder(lessonId, maxOrder + 1);
-          return { success: true };
-        }
-
-        // Real lesson: filesystem move + renumber both sections
-        const repoPath = lesson.section.repoVersion.repo.filePath!;
-        const sourceSectionPath = lesson.section.path;
         const repoVersionId = lesson.section.repoVersionId;
-        const targetSection =
-          yield* lessonSectionOps.getSectionWithHierarchyById(targetSectionId);
-        let targetSectionPath = targetSection.path;
+        const repoPath = lesson.section.repoVersion.repo.filePath;
 
-        const sourceParsed = parseSectionPath(sourceSectionPath);
-        const sourceSectionNumber = sourceParsed?.sectionNumber ?? 1;
-
-        // Real-ness comes from real lessons, never the path prefix (a ghost
-        // can carry a numbered path with no dir). Materialize a ghost target.
-        const targetIsGhost = !sectionHasRealLessons(targetLessons);
-        let targetSectionMaterialized = false;
-        if (targetIsGhost) {
-          const allSections =
-            yield* lessonSectionOps.getSectionsWithLessonsByRepoVersionId(
-              repoVersionId
-            );
-          const posIdx = allSections.findIndex((s) => s.id === targetSectionId);
-          let realBefore = 0;
-          for (let i = 0; i < posIdx; i++) {
-            if (sectionHasRealLessons(allSections[i]!.lessons)) realBefore++;
-          }
-          const sectionNumber = realBefore + 1;
-          const sectionSlug = sectionSlugFromPath(targetSectionPath);
-          targetSectionPath = buildSectionPath(sectionNumber, sectionSlug);
-          yield* lessonSectionOps.updateSectionPath(
-            targetSectionId,
-            targetSectionPath
+        // The whole cascade — placement, renumbering, materialize/dematerialize
+        // — is computed purely so the client optimistic applier can replay the
+        // identical algorithm. See docs/adr/0011-shared-lesson-move-planner.md.
+        const dbSections =
+          yield* lessonSectionOps.getSectionsWithLessonsByRepoVersionId(
+            repoVersionId
           );
-          yield* fileSystem.makeDirectory(
-            nodePath.join(repoPath, targetSectionPath),
-            { recursive: true }
-          );
-          targetSectionMaterialized = true;
-        }
-        const targetSectionNumber =
-          parseSectionPath(targetSectionPath)?.sectionNumber ?? 1;
-
-        const lessonParsed = parseLessonPath(lesson.path);
-        const slug = lessonParsed?.slug ?? lesson.path;
-        const targetRealLessons = targetLessons.filter(
-          (l) => l.fsStatus !== "ghost"
-        );
-        const nextLessonNumber = targetRealLessons.length + 1;
-        const newLessonPath = buildLessonPath(
-          targetSectionNumber,
-          nextLessonNumber,
-          slug
-        );
-
-        yield* repoWrite.moveLessonToSection({
-          repoPath,
-          sourceSectionPath,
-          targetSectionPath,
-          oldLessonDirName: lesson.path,
-          newLessonDirName: newLessonPath,
+        const plan = planLessonMove({
+          sections: dbSections.map((s) => ({
+            id: s.id,
+            path: s.path,
+            lessons: s.lessons.map((l) => ({
+              id: l.id,
+              path: l.path,
+              order: l.order,
+              fsStatus: l.fsStatus,
+            })),
+          })),
+          lessonId,
+          targetSectionId,
+          beforeLessonId,
         });
 
-        yield* lessonSectionOps.updateLesson(lessonId, {
-          sectionId: targetSectionId,
-          path: newLessonPath,
-        });
-        yield* lessonSectionOps.updateLessonOrder(lessonId, maxOrder + 1);
+        if (plan.noop) return { success: true };
 
-        // Renumber source section real lessons to close the gap
-        const sourceLessons = yield* lessonSectionOps.getLessonsBySectionId(
-          lesson.sectionId
-        );
-        const sourceRealLessons = sourceLessons.filter(
-          (l) => l.fsStatus !== "ghost" && l.id !== lessonId
-        );
-
-        if (sourceRealLessons.length > 0) {
-          const renames: { id: string; oldPath: string; newPath: string }[] =
-            [];
-          for (let i = 0; i < sourceRealLessons.length; i++) {
-            const l = sourceRealLessons[i]!;
-            const p = parseLessonPath(l.path);
-            if (!p) continue;
-            const newPath = buildLessonPath(sourceSectionNumber, i + 1, p.slug);
-            if (newPath !== l.path) {
-              renames.push({ id: l.id, oldPath: l.path, newPath });
-            }
-          }
-
-          if (renames.length > 0) {
-            yield* repoWrite.renameLessons({
-              repoPath,
-              sectionPath: sourceSectionPath,
-              renames: renames.map((r) => ({
-                oldPath: r.oldPath,
-                newPath: r.newPath,
-              })),
+        // Execute the filesystem operations in plan order (each references
+        // paths as they exist at that step). Real moves require a repo path.
+        if (plan.fsOps.length > 0) {
+          if (!repoPath) {
+            return yield* new CourseWriteError({
+              cause: null,
+              message: "Cannot move a real lesson in a course with no path",
             });
-
-            for (const rename of renames) {
-              yield* lessonSectionOps.updateLesson(rename.id, {
-                path: rename.newPath,
-              });
+          }
+          for (const op of plan.fsOps) {
+            switch (op.kind) {
+              case "makeSectionDir":
+                yield* fileSystem.makeDirectory(
+                  nodePath.join(repoPath, op.sectionPath),
+                  { recursive: true }
+                );
+                break;
+              case "deleteSectionDir":
+                yield* repoWrite.deleteSectionDir({
+                  repoPath,
+                  sectionPath: op.sectionPath,
+                });
+                break;
+              case "moveLesson":
+                yield* repoWrite.moveLessonToSection({
+                  repoPath,
+                  sourceSectionPath: op.sourceSectionPath,
+                  targetSectionPath: op.targetSectionPath,
+                  oldLessonDirName: op.oldLessonDirName,
+                  newLessonDirName: op.newLessonDirName,
+                });
+                break;
+              case "renameLessons":
+                yield* repoWrite.renameLessons({
+                  repoPath,
+                  sectionPath: op.sectionPath,
+                  renames: op.renames,
+                });
+                break;
+              case "renameSections":
+                yield* repoWrite.renameSections({
+                  repoPath,
+                  renames: op.renames,
+                });
+                break;
             }
           }
         }
 
-        // If no real lessons remain in source, revert it to ghost
-        if (sourceRealLessons.length === 0 && sourceParsed) {
-          yield* repoWrite.deleteSectionDir({
-            repoPath,
-            sectionPath: sourceSectionPath,
+        // Apply the data deltas to the database.
+        for (const u of plan.lessonUpdates) {
+          yield* lessonSectionOps.updateLesson(u.id, {
+            sectionId: u.sectionId,
+            path: u.path,
           });
-          const title = titleFromSlug(sourceParsed.slug);
-          yield* lessonSectionOps.updateSectionPath(lesson.sectionId, title);
+          yield* lessonSectionOps.updateLessonOrder(u.id, u.order);
+        }
+        for (const u of plan.sectionUpdates) {
+          yield* lessonSectionOps.updateSectionPath(u.id, u.path);
         }
 
-        // Renumber sections if any were materialized or dematerialized
-        if (
-          targetSectionMaterialized ||
-          (sourceRealLessons.length === 0 && sourceParsed)
-        ) {
-          yield* renumberSections(repoVersionId, repoPath);
+        // Only real (filesystem-touching) moves need repo validation.
+        if (plan.fsOps.length > 0 && repoPath) {
+          yield* runValidation(repoPath);
         }
 
-        yield* runValidation(repoPath);
         return { success: true };
       });
 

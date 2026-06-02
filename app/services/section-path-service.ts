@@ -20,7 +20,7 @@ export type ParsedSectionPath = {
  * path must not be mistaken for a materialized section.
  */
 export const sectionHasRealLessons = (
-  lessons: ReadonlyArray<{ fsStatus: string }>
+  lessons: ReadonlyArray<{ fsStatus: string | null }>
 ): boolean => lessons.some((lesson) => lesson.fsStatus !== "ghost");
 
 /**

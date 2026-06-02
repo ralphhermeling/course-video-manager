@@ -113,6 +113,7 @@ export function computeSectionDependencyRuns(
 ): {
   runs: { lessons: Lesson[]; startIndex: number }[];
   spinePairs: [string, string][];
+  revalidateKey: string;
 } {
   const connections = enabled ? computeDependencyGroupConnections(lessons) : {};
   const runs = groupIntoRuns(filteredLessons, connections);
@@ -122,7 +123,12 @@ export function computeSectionDependencyRuns(
       spinePairs.push([filteredLessons[i - 1]!.id, lesson.id]);
     }
   });
-  return { runs, spinePairs };
+  // Hash of the full rendered items. The measured spine re-validates whenever
+  // this changes, so any edit that moves an icon re-measures even when it leaves
+  // spinePairs identical and the container's box unchanged: an in-place reorder,
+  // a title edit that rewraps a row, a dependency change, etc. See docs/adr/0010.
+  const revalidateKey = JSON.stringify(filteredLessons);
+  return { runs, spinePairs, revalidateKey };
 }
 
 export function calcSectionDuration(lessons: Lesson[]): number {

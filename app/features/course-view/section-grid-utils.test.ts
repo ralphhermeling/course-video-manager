@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { filterLessons } from "./section-grid-utils";
+import {
+  computeSectionDependencyRuns,
+  filterLessons,
+} from "./section-grid-utils";
 import type { Lesson } from "./course-view-types";
 
 function makeLesson(overrides: Partial<Lesson> = {}): Lesson {
@@ -117,5 +120,63 @@ describe("filterLessons", () => {
     );
     expect(hasActiveFilters).toBe(false);
     expect(filteredLessons).toHaveLength(3);
+  });
+});
+
+describe("computeSectionDependencyRuns", () => {
+  // A -> B -> C chained by direct backward deps, plus a lone lesson D.
+  const chained = [
+    makeLesson({ id: "a" }),
+    makeLesson({ id: "b", dependencies: ["a"] }),
+    makeLesson({ id: "c", dependencies: ["b"] }),
+    makeLesson({ id: "d" }),
+  ];
+
+  it("groups a contiguous dependency chain and emits adjacent spine pairs", () => {
+    const { runs, spinePairs } = computeSectionDependencyRuns(
+      chained,
+      chained,
+      true
+    );
+    expect(runs.map((r) => r.lessons.map((l) => l.id))).toEqual([
+      ["a", "b", "c"],
+      ["d"],
+    ]);
+    expect(spinePairs).toEqual([
+      ["a", "b"],
+      ["b", "c"],
+    ]);
+  });
+
+  it("produces no groups or pairs when disabled", () => {
+    const { runs, spinePairs } = computeSectionDependencyRuns(
+      chained,
+      chained,
+      false
+    );
+    expect(runs).toHaveLength(chained.length);
+    expect(spinePairs).toEqual([]);
+  });
+
+  it("changes revalidateKey when the rendered order changes", () => {
+    const before = computeSectionDependencyRuns(chained, chained, true);
+    const reordered = [chained[3]!, ...chained.slice(0, 3)];
+    const after = computeSectionDependencyRuns(reordered, reordered, true);
+    expect(after.revalidateKey).not.toBe(before.revalidateKey);
+  });
+
+  it("changes revalidateKey when a lesson title changes", () => {
+    const before = computeSectionDependencyRuns(chained, chained, true);
+    const edited = chained.map((l) =>
+      l.id === "a" ? makeLesson({ ...l, title: "New title" }) : l
+    );
+    const after = computeSectionDependencyRuns(edited, edited, true);
+    expect(after.revalidateKey).not.toBe(before.revalidateKey);
+  });
+
+  it("keeps revalidateKey stable when nothing relevant changes", () => {
+    const a = computeSectionDependencyRuns(chained, chained, true);
+    const b = computeSectionDependencyRuns(chained, chained, true);
+    expect(a.revalidateKey).toBe(b.revalidateKey);
   });
 });

@@ -46,7 +46,6 @@ import {
 } from "@/features/course-view/course-view-components";
 import { NextTodoCard } from "@/features/course-view/next-todo-card";
 import {
-  createLessonDragHandler,
   createSectionDragHandler,
   computeFsStatusCounts,
   computeFlatLessons,
@@ -324,11 +323,6 @@ export default function Component(props: Route.ComponentProps) {
     })
   );
 
-  const handleLessonDragEnd = useMemo(
-    () => createLessonDragHandler(submitEvent),
-    [submitEvent]
-  );
-
   const handleSectionDragEnd = useMemo(
     () => createSectionDragHandler(submitEvent),
     [submitEvent]
@@ -467,7 +461,6 @@ export default function Component(props: Route.ComponentProps) {
                     viewMode={viewMode}
                     sensors={sensors}
                     handleSectionDragEnd={handleSectionDragEnd}
-                    handleLessonDragEnd={handleLessonDragEnd}
                     priorityFilter={priorityFilter}
                     iconFilter={iconFilter}
                     fsStatusFilter={fsStatusFilter}

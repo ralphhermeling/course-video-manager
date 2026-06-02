@@ -1,12 +1,7 @@
 import type { CourseEditorEvent } from "@/services/course-editor-service";
 import type { Section } from "./course-view-types";
 import { arrayMove } from "@dnd-kit/sortable";
-import { toast } from "sonner";
-import {
-  findNewOrderViolations,
-  findNewSectionOrderViolations,
-} from "@/utils/dependency-violations";
-import type { DragEndEvent } from "@dnd-kit/core";
+import type { DragEndEvent, DragOverEvent } from "@dnd-kit/core";
 
 type DragItem = {
   id: string;
@@ -15,37 +10,11 @@ type DragItem = {
   dependencies?: string[] | null;
 };
 
-export function createLessonDragHandler(
-  submitEvent: (event: CourseEditorEvent) => void
-) {
-  return (sectionId: string, lessons: DragItem[]) => (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-
-    const fromIndex = lessons.findIndex((l) => l.id === active.id);
-    const toIndex = lessons.findIndex((l) => l.id === over.id);
-    if (fromIndex === -1 || toIndex === -1) return;
-
-    const newOrder = arrayMove(lessons, fromIndex, toIndex);
-
-    const newViolations = findNewOrderViolations(lessons, newOrder);
-    if (newViolations.length > 0) {
-      const details = newViolations
-        .map((v) => `${v.lessonLabel} → ${v.depLabel}`)
-        .join(", ");
-      toast.warning("Dependency violation introduced", {
-        description: details,
-      });
-    }
-
-    submitEvent({
-      type: "reorder-lessons",
-      sectionId,
-      lessonIds: newOrder.map((l) => l.id),
-    });
-  };
-}
-
+/**
+ * Section reorder handler. Dependency-order violations are not blocked or
+ * toasted here — the per-lesson order-violation lint surfaces them after the
+ * fact. See docs/adr/0011-shared-lesson-move-planner.md (harmonised channel).
+ */
 export function createSectionDragHandler(
   submitEvent: (event: CourseEditorEvent) => void
 ) {
@@ -63,21 +32,86 @@ export function createSectionDragHandler(
 
       const newOrder = arrayMove(sections, fromIndex, toIndex);
 
-      const newViolations = findNewSectionOrderViolations(sections, newOrder);
-      if (newViolations.length > 0) {
-        const details = newViolations
-          .map((v) => `${v.lessonLabel} → ${v.depLabel}`)
-          .join(", ");
-        toast.warning("Dependency violation introduced", {
-          description: details,
-        });
-      }
-
       submitEvent({
         type: "reorder-sections",
         sectionIds: newOrder.map((s) => s.id),
       });
     };
+}
+
+type DropSection = { id: string; lessons: { id: string }[] };
+
+export type LessonDrop = {
+  targetSectionId: string;
+  /** Insert before this lesson; `null` appends to the end of the target. */
+  beforeLessonId: string | null;
+};
+
+/**
+ * Resolve a lesson drag into a target section + drop anchor.
+ *
+ * - Dropping over a section container (e.g. an empty section) appends.
+ * - Dropping over a lesson inserts before or after it, decided by whether the
+ *   dragged card's centre is above or below the hovered lesson's centre.
+ */
+export function resolveLessonDrop(
+  event: DragEndEvent | DragOverEvent,
+  sections: DropSection[]
+): LessonDrop | null {
+  const { active, over } = event;
+  if (!over) return null;
+
+  const overId = String(over.id);
+
+  const overSection = sections.find((s) => s.id === overId);
+  if (overSection) {
+    return { targetSectionId: overSection.id, beforeLessonId: null };
+  }
+
+  const overSec = sections.find((s) => s.lessons.some((l) => l.id === overId));
+  if (!overSec) return null;
+
+  const overIndex = overSec.lessons.findIndex((l) => l.id === overId);
+  const activeRect = active.rect.current.translated;
+  const insertBefore = activeRect
+    ? activeRect.top + activeRect.height / 2 <
+      over.rect.top + over.rect.height / 2
+    : true;
+
+  const beforeLessonId = insertBefore
+    ? overId
+    : (overSec.lessons[overIndex + 1]?.id ?? null);
+
+  return { targetSectionId: overSec.id, beforeLessonId };
+}
+
+/**
+ * New lesson-id ordering for a within-section reorder, or `null` if the drop
+ * leaves the order unchanged (or anchors the lesson on itself).
+ */
+export function computeReorderIds(
+  lessons: { id: string }[],
+  lessonId: string,
+  beforeLessonId: string | null
+): string[] | null {
+  if (beforeLessonId === lessonId) return null;
+
+  const ids = lessons.map((l) => l.id);
+  const without = ids.filter((id) => id !== lessonId);
+  let insertAt = beforeLessonId
+    ? without.indexOf(beforeLessonId)
+    : without.length;
+  if (insertAt === -1) insertAt = without.length;
+
+  const next = [
+    ...without.slice(0, insertAt),
+    lessonId,
+    ...without.slice(insertAt),
+  ];
+  if (next.length === ids.length && next.every((id, i) => id === ids[i])) {
+    return null;
+  }
+  return next;
 }
 
 export function computeFsStatusCounts(

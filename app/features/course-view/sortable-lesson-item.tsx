@@ -169,6 +169,7 @@ export function SortableLessonItem({
     isDragging,
   } = useSortable({
     id: lesson.id,
+    data: { type: "lesson", sectionId: section.id },
   });
 
   const style = {

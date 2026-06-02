@@ -143,7 +143,8 @@ export const handleCourseEditorEvent = Effect.fn("handleCourseEditorEvent")(
       case "move-lesson-to-section": {
         return yield* service.moveToSection(
           event.lessonId,
-          event.targetSectionId
+          event.targetSectionId,
+          event.beforeLessonId ?? null
         );
       }
 

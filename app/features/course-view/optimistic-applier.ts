@@ -1,4 +1,5 @@
 import type { CourseEditorEvent } from "@/services/course-editor-service";
+import { planLessonMove } from "@/services/lesson-move-planner";
 import type { LoaderData, Lesson, Section } from "./course-view-types";
 
 /**
@@ -314,39 +315,80 @@ function applyMoveLessonToSection(
   if (!course) return loaderData;
 
   const { lessonId, targetSectionId } = event;
+  const beforeLessonId = event.beforeLessonId ?? null;
 
-  let movedLesson: (typeof course.sections)[number]["lessons"][number] | null =
-    null;
-  let sourceIndex = -1;
+  // Replay the exact server cascade purely: the moved lesson's new path/order,
+  // source/target renumbering, and section materialize/dematerialize path
+  // changes. See docs/adr/0011-shared-lesson-move-planner.md.
+  const plan = planLessonMove({
+    sections: course.sections.map((s) => ({
+      id: s.id,
+      path: s.path,
+      lessons: s.lessons.map((l) => ({
+        id: l.id,
+        path: l.path,
+        order: l.order,
+        fsStatus: l.fsStatus,
+      })),
+    })),
+    lessonId,
+    targetSectionId,
+    beforeLessonId,
+  });
+  if (plan.noop) return loaderData;
 
-  for (let i = 0; i < course.sections.length; i++) {
-    const found = course.sections[i]!.lessons.find((l) => l.id === lessonId);
-    if (found) {
-      movedLesson = found;
-      sourceIndex = i;
-      break;
-    }
-  }
+  const movedLesson = course.sections
+    .flatMap((s) => s.lessons)
+    .find((l) => l.id === lessonId);
+  if (!movedLesson) return loaderData;
 
-  if (!movedLesson || sourceIndex === -1) return loaderData;
-
-  const targetIndex = course.sections.findIndex(
-    (s) => s.id === targetSectionId
+  const lessonUpdateById = new Map(plan.lessonUpdates.map((u) => [u.id, u]));
+  const sectionPathById = new Map(
+    plan.sectionUpdates.map((u) => [u.id, u.path])
   );
-  if (targetIndex === -1) return loaderData;
-  if (sourceIndex === targetIndex) return loaderData;
+  // Patch a lesson's path/order from the plan; section membership is encoded by
+  // which section array the lesson sits in, so it isn't patched here.
+  const patch = (l: typeof movedLesson) => {
+    const u = lessonUpdateById.get(l.id);
+    return u ? { ...l, path: u.path, order: u.order } : l;
+  };
 
-  const sections = course.sections.map((section, i) => {
-    if (i === sourceIndex) {
-      return {
-        ...section,
-        lessons: section.lessons.filter((l) => l.id !== lessonId),
-      };
+  const sections = course.sections.map((section) => {
+    const hadMoved = section.lessons.some((l) => l.id === lessonId);
+    const isTarget = section.id === targetSectionId;
+    const newPath = sectionPathById.get(section.id);
+    const hasPatchedLesson = section.lessons.some(
+      (l) => l.id !== lessonId && lessonUpdateById.has(l.id)
+    );
+    // Sections the cascade doesn't touch keep their reference (cheap, and the
+    // measured dep-group spine relies on stable refs to avoid re-measuring).
+    if (!hadMoved && !isTarget && newPath === undefined && !hasPatchedLesson) {
+      return section;
     }
-    if (i === targetIndex) {
-      return { ...section, lessons: [...section.lessons, movedLesson] };
+
+    // Drop the moved lesson from wherever it currently lives.
+    let lessons = section.lessons.filter((l) => l.id !== lessonId);
+
+    // Insert it into the target at the drop anchor (display order = array
+    // order; null anchor appends), matching the insertion-line position.
+    if (section.id === targetSectionId) {
+      const patchedMoved = patch(movedLesson);
+      const idx =
+        beforeLessonId !== null
+          ? lessons.findIndex((l) => l.id === beforeLessonId)
+          : -1;
+      lessons =
+        idx === -1
+          ? [...lessons, patchedMoved]
+          : [...lessons.slice(0, idx), patchedMoved, ...lessons.slice(idx)];
     }
-    return section;
+
+    // Apply path/order patches to the rest (source renumber, target shifts).
+    lessons = lessons.map((l) => (l.id === lessonId ? l : patch(l)));
+
+    return newPath !== undefined
+      ? { ...section, path: newPath, lessons }
+      : { ...section, lessons };
   });
 
   return {

@@ -23,6 +23,7 @@ import { type LoaderData } from "./course-view-types";
 import { formatSecondsToTimeCode } from "@/services/utils";
 import {
   DndContext,
+  DragOverlay,
   closestCenter,
   type DragEndEvent,
   type useSensors,
@@ -32,16 +33,21 @@ import {
   verticalListSortingStrategy,
   rectSortingStrategy,
 } from "@dnd-kit/sortable";
+import { useLessonDrag } from "./use-lesson-drag";
 import { ChevronRight, Ghost, GripVertical } from "lucide-react";
-import { useState, useCallback } from "react";
+import { Fragment, useState, useCallback } from "react";
 import { useNavigate, useFetcher } from "react-router";
+
+/** Insertion indicator shown at the drop anchor during a cross-section drag. */
+function DropLine() {
+  return <div className="h-0.5 my-0.5 rounded-full bg-primary" />;
+}
 
 export function SectionGrid({
   currentCourse,
   data,
   sensors,
   handleSectionDragEnd,
-  handleLessonDragEnd,
   priorityFilter,
   iconFilter,
   fsStatusFilter,
@@ -81,15 +87,6 @@ export function SectionGrid({
       }[];
     }[],
     repoVersionId: string
-  ) => (event: DragEndEvent) => void;
-  handleLessonDragEnd: (
-    sectionId: string,
-    lessons: {
-      id: string;
-      title?: string | null;
-      path: string;
-      dependencies?: string[] | null;
-    }[]
   ) => (event: DragEndEvent) => void;
   priorityFilter: number[];
   iconFilter: string[];
@@ -186,6 +183,25 @@ export function SectionGrid({
     [submitEvent]
   );
 
+  // Lesson and section dragging share a single DndContext so a lesson can be
+  // dragged across sections. Within-section keeps dnd-kit's live reorder; a
+  // cross-section drag is drop-only and shows an insertion line at the anchor.
+  const {
+    dropIndicator,
+    activeLesson,
+    onDragStart,
+    onDragOver,
+    onDragEnd,
+    onDragCancel,
+  } = useLessonDrag({
+    sections: displaySections,
+    submitEvent,
+    onSectionDragEnd: handleSectionDragEnd(
+      displaySections,
+      data.selectedVersion!.id
+    ),
+  });
+
   return (
     <DependencyDragProvider
       dependencyMap={dependencyMap}
@@ -195,10 +211,10 @@ export function SectionGrid({
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
-        onDragEnd={handleSectionDragEnd(
-          displaySections,
-          data.selectedVersion!.id
-        )}
+        onDragStart={onDragStart}
+        onDragOver={onDragOver}
+        onDragEnd={onDragEnd}
+        onDragCancel={onDragCancel}
       >
         <SortableContext
           items={displaySections.map((s) => s.id)}
@@ -223,11 +239,12 @@ export function SectionGrid({
               // Dependency Group runs + spine pairs. Only in compact view, and
               // suppressed under any active filter (the rendered list no longer
               // reflects true adjacency). See CONTEXT.md / docs/adr/0010.
-              const { runs, spinePairs } = computeSectionDependencyRuns(
-                lessons,
-                filteredLessons,
-                viewMode === "compact" && !hasActiveFilters
-              );
+              const { runs, spinePairs, revalidateKey } =
+                computeSectionDependencyRuns(
+                  lessons,
+                  filteredLessons,
+                  viewMode === "compact" && !hasActiveFilters
+                );
 
               const isGhostSection =
                 lessons.length === 0 ||
@@ -325,41 +342,38 @@ export function SectionGrid({
                               searchQuery) && (
                               <CompactLessonList
                                 pairs={spinePairs}
+                                revalidateKey={revalidateKey}
                                 className={
                                   viewMode === "compact" ? "px-2 py-1" : "p-2"
                                 }
                               >
-                                <DndContext
-                                  sensors={sensors}
-                                  collisionDetection={closestCenter}
-                                  onDragEnd={handleLessonDragEnd(
-                                    section.id,
-                                    lessons
-                                  )}
+                                <SortableContext
+                                  items={lessons.map((l) => l.id)}
+                                  strategy={verticalListSortingStrategy}
                                 >
-                                  <SortableContext
-                                    items={lessons.map((l) => l.id)}
-                                    strategy={verticalListSortingStrategy}
-                                  >
-                                    {hasActiveFilters &&
-                                      filteredLessons.length === 0 && (
-                                        <p className="text-xs text-muted-foreground text-center py-3">
-                                          No matching lessons
-                                        </p>
+                                  {hasActiveFilters &&
+                                    filteredLessons.length === 0 && (
+                                      <p className="text-xs text-muted-foreground text-center py-3">
+                                        No matching lessons
+                                      </p>
+                                    )}
+                                  {/* Contiguous Dependency Group runs: spacing
+                                      separates blocks, the measured overlay
+                                      draws the icon-to-icon dashed lines. */}
+                                  {runs.map((run) => (
+                                    <div
+                                      key={run.lessons[0]!.id}
+                                      className={runSpacingClass(
+                                        run.lessons.length > 1
                                       )}
-                                    {/* Contiguous Dependency Group runs: spacing
-                                        separates blocks, the measured overlay
-                                        draws the icon-to-icon dashed lines. */}
-                                    {runs.map((run) => (
-                                      <div
-                                        key={run.lessons[0]!.id}
-                                        className={runSpacingClass(
-                                          run.lessons.length > 1
-                                        )}
-                                      >
-                                        {run.lessons.map((lesson, idx) => (
+                                    >
+                                      {run.lessons.map((lesson, idx) => (
+                                        <Fragment key={lesson.id}>
+                                          {dropIndicator?.targetSectionId ===
+                                            section.id &&
+                                            dropIndicator.beforeLessonId ===
+                                              lesson.id && <DropLine />}
                                           <SortableLessonItem
-                                            key={lesson.id}
                                             lesson={lesson}
                                             lessonIndex={run.startIndex + idx}
                                             section={section}
@@ -395,11 +409,18 @@ export function SectionGrid({
                                             isGhostCourse={isGhostCourse}
                                             compact={viewMode === "compact"}
                                           />
-                                        ))}
-                                      </div>
-                                    ))}
-                                  </SortableContext>
-                                </DndContext>
+                                        </Fragment>
+                                      ))}
+                                    </div>
+                                  ))}
+                                  {/* Anchor at the end of the list (append, or
+                                      dropping into an empty section). */}
+                                  {dropIndicator?.targetSectionId ===
+                                    section.id &&
+                                    dropIndicator.beforeLessonId === null && (
+                                      <DropLine />
+                                    )}
+                                </SortableContext>
                               </CompactLessonList>
                             )}
                           </div>
@@ -466,6 +487,15 @@ export function SectionGrid({
             })}
           </div>
         </SortableContext>
+        <DragOverlay>
+          {activeLesson ? (
+            <div className="rounded-md border bg-card px-2 py-1 text-sm shadow-lg">
+              {activeLesson.fsStatus === "ghost"
+                ? activeLesson.title || activeLesson.path
+                : activeLesson.path}
+            </div>
+          ) : null}
+        </DragOverlay>
       </DndContext>
     </DependencyDragProvider>
   );
