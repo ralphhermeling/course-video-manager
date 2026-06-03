@@ -1,7 +1,14 @@
+import os from "node:os";
 import { reactRouter } from "@react-router/dev/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
+
+// On CI (GitHub Actions sets CI=true) match the fork count to the runner's
+// core count — the suite is CPU-bound, so spawning more forks than cores just
+// oversubscribes and wastes memory. Locally, cap at 5 to leave headroom.
+const isCI = !!process.env.CI;
+const maxForks = isCI ? Math.max(1, os.availableParallelism()) : 5;
 
 const ISOLATED_TEST_FILES = [
   "app/services/cloudinary-markdown-service.test.ts",
@@ -29,7 +36,7 @@ export default defineConfig({
     pool: "forks",
     poolOptions: {
       forks: {
-        maxForks: 5,
+        maxForks,
       },
     },
     projects: [
