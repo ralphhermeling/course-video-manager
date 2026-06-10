@@ -172,6 +172,7 @@ export function SectionCard({
                           editSectionId={editSectionId}
                           dispatch={dispatch}
                           submitEvent={submitEvent}
+                          navigateTo={`/courses/${currentCourse.id}/sections/${section.id}`}
                         />
                         {showGhostSectionStyle && (
                           <Ghost className="w-3.5 h-3.5 text-muted-foreground/40" />

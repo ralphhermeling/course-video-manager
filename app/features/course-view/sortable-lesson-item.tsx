@@ -387,6 +387,11 @@ export function SortableLessonItem({
                   onCancel={() => setEditingTitle(false)}
                   onSave={saveTitle}
                   onStartEditing={startEditingTitle}
+                  navigateTo={
+                    data.selectedCourse
+                      ? `/courses/${data.selectedCourse.id}/sections/${section.id}#${lesson.id}`
+                      : undefined
+                  }
                 />
                 {showGhostStyle && (
                   <span className="flex items-center text-muted-foreground/60 shrink-0">

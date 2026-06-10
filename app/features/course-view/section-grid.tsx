@@ -87,11 +87,18 @@ export function SectionGrid({
   deleteVideoFileFetcher,
   submitDeleteVideo,
   isGhostCourse,
+  singleColumn = false,
 }: {
   currentCourse: NonNullable<LoaderData["selectedCourse"]>;
   data: LoaderData;
   isGhostCourse: boolean;
   viewMode: "expanded" | "compact";
+  /**
+   * Render every Section full-width in one column instead of the multi-column
+   * grid. Used by the Section Workbench, which shows a single Section and wants
+   * the horizontal room the dense course view deliberately gives up.
+   */
+  singleColumn?: boolean;
   sensors: ReturnType<typeof useSensors>;
   handleSectionDragEnd: (
     sections: {
@@ -240,7 +247,11 @@ export function SectionGrid({
               <div
                 className={cn(
                   "grid grid-cols-1 gap-8",
-                  viewMode === "compact" ? "lg:grid-cols-3" : "lg:grid-cols-2"
+                  singleColumn
+                    ? "lg:grid-cols-1"
+                    : viewMode === "compact"
+                      ? "lg:grid-cols-3"
+                      : "lg:grid-cols-2"
                 )}
                 onClick={handleGridClick}
               >

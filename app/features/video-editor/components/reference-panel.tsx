@@ -188,17 +188,9 @@ export const ReferencePanel = (props: {
   };
 
   return (
-    <div
-      className={cn(
-        "border rounded-lg bg-muted/30 flex flex-col min-h-0",
-        props.className
-      )}
-    >
+    <div className={cn("flex flex-col min-h-0", props.className)}>
       <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/50 shrink-0">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold shrink-0">
-            Reference
-          </span>
           <span className="text-xs font-medium truncate">{selected.path}</span>
         </div>
         <div className="flex items-center gap-1 shrink-0">

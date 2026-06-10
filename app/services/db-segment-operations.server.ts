@@ -107,6 +107,21 @@ export const createSegmentOperations = (db: DrizzleDB) => {
     return yield* requireSegment(id);
   });
 
+  /**
+   * Set a Segment's free-text planning Description (default `""`). Purely an
+   * in-app authoring aid — never published. The Description rides on the segment
+   * row, so moving a Segment between Videos preserves it automatically.
+   */
+  const setSegmentDescription = Effect.fn("setSegmentDescription")(function* (
+    id: string,
+    description: string
+  ) {
+    yield* makeDbCall(() =>
+      db.update(segments).set({ description }).where(eq(segments.id, id))
+    );
+    return yield* requireSegment(id);
+  });
+
   const setSegmentKind = Effect.fn("setSegmentKind")(function* (
     id: string,
     kind: SegmentKind
@@ -173,6 +188,7 @@ export const createSegmentOperations = (db: DrizzleDB) => {
     listSegmentsByVideoId,
     createSegment,
     renameSegment,
+    setSegmentDescription,
     setSegmentKind,
     deleteSegment,
     moveSegment,

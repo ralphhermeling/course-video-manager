@@ -15,6 +15,7 @@ const makeSegment = (overrides: Partial<Segment> = {}): Segment =>
     videoId: "video-1",
     kind: "definition",
     title: "",
+    description: "",
     order: "a0",
     ...overrides,
   }) as Segment;
@@ -59,6 +60,32 @@ describe("rename-segment", () => {
       type: "rename-segment",
       segmentId: "nope",
       title: "x",
+    });
+    expect(result).toBe(data);
+  });
+});
+
+describe("update-segment-description", () => {
+  it("updates the matching segment's description", () => {
+    const data = loaderWithSegments([
+      makeSegment({ id: "seg-1", description: "" }),
+    ]);
+    const result = applyOptimisticEvent(data, {
+      type: "update-segment-description",
+      segmentId: "seg-1",
+      description: "What I'll say in this part",
+    });
+    expect(segmentsOf(result)[0]!.description).toBe(
+      "What I'll say in this part"
+    );
+  });
+
+  it("returns loaderData unchanged when the segment is not found", () => {
+    const data = loaderWithSegments([makeSegment({ id: "seg-1" })]);
+    const result = applyOptimisticEvent(data, {
+      type: "update-segment-description",
+      segmentId: "nope",
+      description: "x",
     });
     expect(result).toBe(data);
   });

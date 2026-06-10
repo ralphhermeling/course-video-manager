@@ -70,6 +70,7 @@ function entityIdForEvent(event: CourseEditorEvent): string {
     case "create-segment":
       return event.videoId;
     case "rename-segment":
+    case "update-segment-description":
     case "set-segment-kind":
     case "delete-segment":
     case "move-segment":
@@ -135,6 +136,10 @@ export function applyOptimisticEvent(
     case "rename-segment":
       return withPatchedSegment(loaderData, event.segmentId, () => ({
         title: event.title,
+      }));
+    case "update-segment-description":
+      return withPatchedSegment(loaderData, event.segmentId, () => ({
+        description: event.description,
       }));
     case "set-segment-kind":
       return withPatchedSegment(loaderData, event.segmentId, () => ({

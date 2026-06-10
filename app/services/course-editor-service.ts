@@ -150,6 +150,11 @@ export type CourseEditorEvent =
       title: string;
     }
   | {
+      type: "update-segment-description";
+      segmentId: string;
+      description: string;
+    }
+  | {
       type: "set-segment-kind";
       segmentId: string;
       kind: SegmentKind;
@@ -290,6 +295,11 @@ export interface CourseEditorService {
   ): Promise<{ success: true; segmentId: string }>;
 
   renameSegment(segmentId: string, title: string): Promise<{ success: true }>;
+
+  setSegmentDescription(
+    segmentId: string,
+    description: string
+  ): Promise<{ success: true }>;
 
   setSegmentKind(
     segmentId: string,
@@ -513,6 +523,14 @@ export function createCourseEditorService(
         type: "rename-segment",
         segmentId,
         title,
+      }) as Promise<{ success: true }>;
+    },
+
+    async setSegmentDescription(segmentId, description) {
+      return send({
+        type: "update-segment-description",
+        segmentId,
+        description,
       }) as Promise<{ success: true }>;
     },
 

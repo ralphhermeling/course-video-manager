@@ -45,6 +45,7 @@ describe("createSegment", () => {
 
       expect(segment.kind).toBe("definition");
       expect(segment.title).toBe("");
+      expect(segment.description).toBe("");
       expect(segment.videoId).toBe("video-1");
       expect(segment.order).toEqual(expect.any(String));
     }).pipe(Effect.provide(testLayer))
@@ -193,6 +194,51 @@ describe("renameSegment", () => {
   );
 });
 
+describe("setSegmentDescription", () => {
+  it.effect("persists the description while preserving title and kind", () =>
+    Effect.gen(function* () {
+      yield* Effect.promise(() => makeVideo("video-1"));
+      const segmentOps = yield* SegmentOperationsService;
+      const created = yield* segmentOps.createSegment("video-1", "quest");
+      yield* segmentOps.renameSegment(created.id, "Closures");
+
+      const updated = yield* segmentOps.setSegmentDescription(
+        created.id,
+        "Explain the stack vs the heap before the demo."
+      );
+
+      expect(updated.description).toBe(
+        "Explain the stack vs the heap before the demo."
+      );
+      expect(updated.title).toBe("Closures");
+      expect(updated.kind).toBe("quest");
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("can be cleared back to an empty string", () =>
+    Effect.gen(function* () {
+      yield* Effect.promise(() => makeVideo("video-1"));
+      const segmentOps = yield* SegmentOperationsService;
+      const created = yield* segmentOps.createSegment("video-1");
+      yield* segmentOps.setSegmentDescription(created.id, "draft note");
+
+      const cleared = yield* segmentOps.setSegmentDescription(created.id, "");
+
+      expect(cleared.description).toBe("");
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("fails when the segment does not exist", () =>
+    Effect.gen(function* () {
+      const segmentOps = yield* SegmentOperationsService;
+      const result = yield* segmentOps
+        .setSegmentDescription("missing", "x")
+        .pipe(Effect.either);
+      expect(result._tag).toBe("Left");
+    }).pipe(Effect.provide(testLayer))
+  );
+});
+
 describe("setSegmentKind", () => {
   it.effect("changes the kind while preserving the title", () =>
     Effect.gen(function* () {
@@ -279,6 +325,26 @@ describe("moveSegment", () => {
         const v2 = yield* segmentOps.listSegmentsByVideoId("video-2");
         expect(v1).toHaveLength(0);
         expect(v2.map((s) => s.id)).toEqual([a.id, d.id]);
+      }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect(
+    "preserves the segment's description across a cross-video move",
+    () =>
+      Effect.gen(function* () {
+        yield* Effect.promise(() => makeVideo("video-1"));
+        yield* Effect.promise(() => makeVideo("video-2"));
+        const segmentOps = yield* SegmentOperationsService;
+        const a = yield* segmentOps.createSegment("video-1");
+        yield* segmentOps.setSegmentDescription(
+          a.id,
+          "travels with the segment"
+        );
+
+        const moved = yield* segmentOps.moveSegment(a.id, "video-2", null);
+
+        expect(moved.videoId).toBe("video-2");
+        expect(moved.description).toBe("travels with the segment");
       }).pipe(Effect.provide(testLayer))
   );
 });

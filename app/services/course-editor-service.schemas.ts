@@ -134,6 +134,11 @@ export const CourseEditorEventSchema = Schema.Union(
     title: Schema.String,
   }),
   Schema.Struct({
+    type: Schema.Literal("update-segment-description"),
+    segmentId: nonEmptyString,
+    description: Schema.String,
+  }),
+  Schema.Struct({
     type: Schema.Literal("set-segment-kind"),
     segmentId: nonEmptyString,
     kind: segmentKind,

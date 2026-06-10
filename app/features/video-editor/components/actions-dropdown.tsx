@@ -24,6 +24,7 @@ import {
   DownloadIcon,
   FilmIcon,
   FolderOpen,
+  ListTree,
   Loader2,
   PencilLineIcon,
   Plus,
@@ -80,6 +81,10 @@ export const ActionsDropdown = (props: {
   referenceVideoId: string | null;
   /** Set or clear the Reference Video */
   setReferenceVideoId: (id: string | null) => void;
+  /** Whether this video has a segment plan (enables "Show segment plan") */
+  hasSegments: boolean;
+  /** Activate the Segment Panel (the Segments tab) in the side panel */
+  onShowSegmentPanel: () => void;
   /** Open the AI-driven Chapter generation modal */
   onGenerateChaptersClick: () => void;
   /** Open diagram playground resolved for the current video context */
@@ -165,6 +170,18 @@ export const ActionsDropdown = (props: {
             </DropdownMenuSubContent>
           </DropdownMenuSub>
         ) : null}
+
+        {props.hasSegments && (
+          <DropdownMenuItem onSelect={props.onShowSegmentPanel}>
+            <ListTree className="w-4 h-4 mr-2" />
+            <div className="flex flex-col">
+              <span className="font-medium">Show segment plan</span>
+              <span className="text-xs text-muted-foreground">
+                Open this video's Segment Panel
+              </span>
+            </div>
+          </DropdownMenuItem>
+        )}
 
         <DropdownMenuSeparator />
 

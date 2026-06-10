@@ -38,7 +38,7 @@ import { courseEditorFetcherKeyForEvent } from "@/features/course-view/optimisti
 import type { CourseEditorEvent } from "@/services/course-editor-service";
 import { SegmentDndProvider } from "@/features/segments/segment-dnd-context";
 import { CreateSegmentDialogProvider } from "@/features/segments/create-segment-dialog";
-import { PitchVideoSegments } from "@/features/segments/pitch-video-segments";
+import { SegmentList } from "@/features/segments/segment-list";
 import { pitchBackLink } from "@/features/pitches/pitch-back-link";
 import { X_POST_CHARACTER_LIMIT } from "@/features/pitches/x-character-count";
 import type { Route } from "./+types/_app.pitches.$pitchId";
@@ -58,6 +58,7 @@ interface PitchVideo {
     videoId: string;
     kind: string;
     title: string;
+    description: string;
     order: string;
   }[];
 }
@@ -431,9 +432,11 @@ export default function PitchDetailRoute(props: Route.ComponentProps) {
                           </div>
                         </Link>
                         <div className="pl-1">
-                          <PitchVideoSegments
+                          <SegmentList
                             video={video}
                             submitEvent={submitEvent}
+                            isReadOnly={false}
+                            showDescriptions
                           />
                         </div>
                       </div>

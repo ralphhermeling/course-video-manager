@@ -230,6 +230,7 @@ export const makeDuplicateCourse = (db: DrizzleDB) =>
                   videoId: newVideo.id,
                   kind: segment.kind,
                   title: segment.title,
+                  description: segment.description,
                   order: segment.order,
                 }))
               )

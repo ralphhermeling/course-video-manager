@@ -4,10 +4,14 @@ import { FilePasteModalWithFsData } from "./components/file-paste-modal-with-fs-
 import { VideoPlayerPanel } from "./components/video-player-panel";
 import { ClipTimeline } from "./components/clip-timeline";
 import { ErrorOverlay } from "./components/error-overlay";
-import {
-  ReferencePanel,
-  type ReferenceCandidate,
-} from "./components/reference-panel";
+import { type ReferenceCandidate } from "./components/reference-panel";
+import { EditorSidePanel } from "./components/editor-side-panel";
+import { useSegmentTab } from "./hooks/use-segment-tab";
+import { useVideoEditor } from "./hooks/use-video-editor";
+import { resolveSegmentTab } from "./segment-tab";
+import { courseEditorFetcherKeyForEvent } from "@/features/course-view/optimistic-applier";
+import type { CourseEditorEvent } from "@/services/course-editor-service";
+import type { SegmentListSegment } from "@/features/segments/segment-list";
 import { useGenerateChaptersModal } from "./hooks/use-generate-chapters-modal";
 import {
   useDiagramPin,
@@ -28,10 +32,8 @@ import {
   useState,
 } from "react";
 import { enableVideoEditorMode } from "@/lib/diagram-window";
-import { useFetcher, useRevalidator } from "react-router";
-import { useEffectReducer } from "use-effect-reducer";
+import { useFetcher, useRevalidator, useSubmit } from "react-router";
 import type {
-  Clip,
   EditorError,
   FrontendId,
   FrontendInsertionPoint,
@@ -43,10 +45,6 @@ import { isClip } from "./clip-utils";
 import { type OBSConnectionOuterState } from "./obs-connector";
 import { type FrontendSpeechDetectorState } from "./use-speech-detector";
 import type { PauseLength } from "@/silence-detection-constants";
-import {
-  makeVideoEditorReducer,
-  type videoStateReducer,
-} from "./video-state-reducer";
 import {
   VideoEditorContext,
   type SuggestionState,
@@ -65,77 +63,8 @@ import {
   getAllClipsHaveText,
   getClipComputedProps,
   getAreAnyClipsDangerous,
+  isCaptureInProgress,
 } from "./video-editor-selectors";
-
-const useVideoEditor = (props: {
-  items: TimelineItem[];
-  clips: Clip[];
-  insertionPoint: FrontendInsertionPoint;
-  onClipsRemoved: (clipIds: FrontendId[]) => void;
-  onClipsRetranscribe: (clipIds: FrontendId[]) => void;
-  onToggleBeatForClip: (clipId: FrontendId) => void;
-  onMoveClip: (clipId: FrontendId, direction: "up" | "down") => void;
-  onAddChapter: (name: string) => void;
-  onUpdateChapter: (chapterId: FrontendId, name: string) => void;
-  onCreateVideoFromSelection: (
-    clipIds: FrontendId[],
-    chapterIds: FrontendId[],
-    title: string,
-    mode: "copy" | "move"
-  ) => void;
-}) => {
-  const [state, dispatch] = useEffectReducer<
-    videoStateReducer.State,
-    videoStateReducer.Action,
-    videoStateReducer.Effect
-  >(
-    makeVideoEditorReducer(
-      props.items.map((item) => item.frontendId),
-      props.clips.map((clip) => clip.frontendId)
-    ),
-    {
-      showLastFrameOfVideo: true,
-      runningState: "paused",
-      currentClipId: props.clips[0]?.frontendId,
-      currentTimeInClip: 0,
-      selectedClipsSet: new Set<FrontendId>(),
-      clipIdsPreloaded: new Set<FrontendId>(
-        [props.clips[0]?.frontendId, props.clips[1]?.frontendId].filter(
-          (id) => id !== undefined
-        )
-      ),
-      playbackRate: 1,
-      scrubSeekTime: undefined,
-    },
-    {
-      "archive-clips": (_state, effect, _dispatch) => {
-        props.onClipsRemoved(effect.clipIds);
-      },
-      "retranscribe-clips": (_state, effect, _dispatch) => {
-        props.onClipsRetranscribe(effect.clipIds);
-      },
-      "toggle-beat-for-clip": (_state, effect, _dispatch) => {
-        props.onToggleBeatForClip(effect.clipId);
-      },
-      "move-clip": (_state, effect, _dispatch) => {
-        props.onMoveClip(effect.clipId, effect.direction);
-      },
-      "create-video-from-selection": (_state, effect, _dispatch) => {
-        props.onCreateVideoFromSelection(
-          effect.clipIds,
-          effect.chapterIds,
-          effect.title,
-          effect.mode
-        );
-      },
-    }
-  );
-
-  return {
-    state,
-    dispatch,
-  };
-};
 
 export const VideoEditor = (props: {
   obsConnectorState: OBSConnectionOuterState;
@@ -161,6 +90,7 @@ export const VideoEditor = (props: {
     files: Array<{ path: string; size: number; defaultEnabled: boolean }>;
   }>;
   videoCount: number;
+  segments: SegmentListSegment[];
   referenceCandidates: ReferenceCandidate[];
   onAddReferenceChapterAt: (input: {
     videoId: string;
@@ -363,6 +293,51 @@ export const VideoEditor = (props: {
     props.videoId
   );
 
+  const [persistedSegmentTab, setPersistedSegmentTab] = useSegmentTab(
+    props.videoId
+  );
+
+  // Adding a reference auto-switches the persisted tab to Reference so the
+  // newly-added reader surfaces; removing (next === null) leaves the tab alone.
+  const handleSetReferenceVideoId = useCallback(
+    (next: string | null) => {
+      setReferenceVideoId(next);
+      if (next) setPersistedSegmentTab("reference");
+    },
+    [setReferenceVideoId, setPersistedSegmentTab]
+  );
+
+  // Segment edits submit to /api/course-editor with a stable per-entity
+  // fetcher key and navigate:false — exactly like the pitch page. Plain loader
+  // revalidation handles the refresh; no editor-specific optimistic applier.
+  const submit = useSubmit();
+  const submitSegmentEvent = useCallback(
+    (event: CourseEditorEvent) => {
+      submit(event, {
+        method: "post",
+        encType: "application/json",
+        action: "/api/course-editor",
+        navigate: false,
+        fetcherKey: courseEditorFetcherKeyForEvent(event),
+      });
+    },
+    [submit]
+  );
+
+  // The Segment Panel is read-only the instant a capture starts and through
+  // the post-recording settling window (recording, polling, or unresolved
+  // optimistic clips) — see isCaptureInProgress.
+  const captureInProgress = isCaptureInProgress(
+    props.obsConnectorState,
+    props.items,
+    props.sessions
+  );
+
+  const onShowSegmentPanel = useCallback(
+    () => setPersistedSegmentTab("segments"),
+    [setPersistedSegmentTab]
+  );
+
   // Build context value with all state and callbacks
   const contextValue = useMemo(
     () => ({
@@ -407,7 +382,9 @@ export const VideoEditor = (props: {
       videoCount: props.videoCount,
       referenceCandidates: props.referenceCandidates,
       referenceVideoId,
-      setReferenceVideoId,
+      setReferenceVideoId: handleSetReferenceVideoId,
+      hasSegments: props.segments.length > 0,
+      onShowSegmentPanel,
       insertionPoint: props.insertionPoint,
       obsConnectorState: props.obsConnectorState,
       liveMediaStream: props.liveMediaStream,
@@ -509,7 +486,9 @@ export const VideoEditor = (props: {
       props.videoCount,
       props.referenceCandidates,
       referenceVideoId,
-      setReferenceVideoId,
+      handleSetReferenceVideoId,
+      props.segments,
+      onShowSegmentPanel,
       props.insertionPoint,
       props.obsConnectorState,
       props.liveMediaStream,
@@ -563,6 +542,14 @@ export const VideoEditor = (props: {
       ? referenceVideoId
       : null;
 
+  const hasReference = activeReference !== null;
+  const hasSegments = props.segments.length > 0;
+  const activeTab = resolveSegmentTab({
+    persistedTab: persistedSegmentTab,
+    hasSegments,
+    hasReference,
+  });
+
   const modals = (
     <>
       <ChapterNamingModalComponent
@@ -597,31 +584,41 @@ export const VideoEditor = (props: {
     </>
   );
 
-  const body: ReactNode = activeReference ? (
-    <>
-      <ClipTimeline />
-      <div className="order-3 lg:order-2 lg:w-[40ch] shrink-0 h-full min-h-0">
-        <ReferencePanel
-          candidates={props.referenceCandidates}
-          selectedId={activeReference}
-          onRemove={() => setReferenceVideoId(null)}
-          onAddChapterAt={props.onAddReferenceChapterAt}
-          onEditChapterName={props.onEditReferenceChapterName}
-          onDeleteChapter={props.onDeleteReferenceChapter}
-          onGenerateChapters={() => onOpenGenerateForReference(activeReference)}
-          className="h-full"
-        />
-      </div>
-      <div className="order-1 lg:order-3 lg:flex-[1.5] h-full min-h-0 flex flex-col">
+  const body: ReactNode =
+    activeTab !== null ? (
+      <>
+        <ClipTimeline />
+        <div className="order-3 lg:order-2 lg:w-[40ch] shrink-0 h-full min-h-0">
+          <EditorSidePanel
+            activeTab={activeTab}
+            hasSegments={hasSegments}
+            hasReference={hasReference}
+            onTabChange={setPersistedSegmentTab}
+            videoId={props.videoId}
+            segments={props.segments}
+            isSegmentsReadOnly={captureInProgress}
+            onSegmentEvent={submitSegmentEvent}
+            referenceCandidates={props.referenceCandidates}
+            referenceVideoId={activeReference}
+            onRemoveReference={() => handleSetReferenceVideoId(null)}
+            onAddReferenceChapterAt={props.onAddReferenceChapterAt}
+            onEditReferenceChapterName={props.onEditReferenceChapterName}
+            onDeleteReferenceChapter={props.onDeleteReferenceChapter}
+            onGenerateReferenceChapters={() => {
+              if (activeReference) onOpenGenerateForReference(activeReference);
+            }}
+          />
+        </div>
+        <div className="order-1 lg:order-3 lg:flex-[1.5] h-full min-h-0 flex flex-col">
+          <VideoPlayerPanel />
+        </div>
+      </>
+    ) : (
+      <>
         <VideoPlayerPanel />
-      </div>
-    </>
-  ) : (
-    <>
-      <VideoPlayerPanel />
-      <ClipTimeline />
-    </>
-  );
+        <ClipTimeline />
+      </>
+    );
 
   return (
     <div className="flex flex-col lg:flex-row h-full p-6 gap-6">

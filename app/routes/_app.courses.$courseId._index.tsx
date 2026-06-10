@@ -9,17 +9,8 @@ import {
 } from "@/features/course-view/course-view-reducer";
 import type { CourseEditorEvent } from "@/services/course-editor-service";
 import { Button } from "@/components/ui/button";
-import { CourseOperationsService } from "@/services/db-course-operations.server";
-import { VersionOperationsService } from "@/services/db-version-operations.server";
-import {
-  loadExportStatusMap,
-  loadLessonFsMaps,
-  toSlimVideo,
-} from "@/services/course-loader-fs";
-import type { ExportClip } from "@/services/export-hash";
-import { FeatureFlagService } from "@/services/feature-flag-service";
 import { makeLoader } from "@/services/route-action.server";
-import { runtimeLive } from "@/services/layer.server";
+import { courseViewEffect } from "@/features/course-view/course-view-loader.server";
 import {
   PointerSensor,
   KeyboardSensor,
@@ -27,8 +18,6 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
-import { Effect } from "effect";
-import { getGitStatusAsync } from "@/services/git-status-service.server";
 import { AlertTriangle, Plus } from "lucide-react";
 import {
   useCallback,
@@ -99,133 +88,10 @@ export const loader = async (args: Route.LoaderArgs) => {
 
   return makeLoader({
     effect: ({ params }) =>
-      Effect.gen(function* () {
-        const selectedCourseId = params.courseId!;
-        const courseOps = yield* CourseOperationsService;
-        const versionOps = yield* VersionOperationsService;
-        const featureFlags = yield* FeatureFlagService;
-
-        const courses = yield* courseOps.getCourses();
-
-        const versions = yield* versionOps.getCourseVersions(selectedCourseId);
-
-        let selectedVersion: Awaited<
-          ReturnType<typeof versionOps.getLatestCourseVersion>
-        > extends Effect.Effect<infer R, any, any>
-          ? R
-          : never = undefined;
-
-        if (selectedVersionId) {
-          selectedVersion = yield* versionOps
-            .getCourseVersionById(selectedVersionId)
-            .pipe(
-              Effect.catchTag("NotFoundError", () => Effect.succeed(undefined))
-            );
-        } else {
-          selectedVersion =
-            yield* versionOps.getLatestCourseVersion(selectedCourseId);
-        }
-
-        const selectedCourse = yield* courseOps
-          .getCourseWithSlimClipsById(selectedCourseId, selectedVersion?.id)
-          .pipe(
-            Effect.andThen((course) => {
-              if (!course) {
-                return undefined;
-              }
-
-              const allSections = course.versions[0]?.sections ?? [];
-
-              return {
-                ...course,
-                sections: allSections.filter((section) => {
-                  return !section.path.endsWith("ARCHIVE");
-                }),
-              };
-            })
-          );
-
-        const allVideos = selectedCourse?.sections.flatMap((s) =>
-          s.lessons.flatMap((l) => l.videos)
-        );
-
-        const slimCourse = selectedCourse
-          ? (() => {
-              const { versions, sections, ...courseRest } = selectedCourse;
-              return {
-                ...courseRest,
-                sections: sections.map((section) => {
-                  const { lessons, ...sectionRest } = section;
-                  return {
-                    ...sectionRest,
-                    lessons: lessons.map((lesson) => {
-                      const { videos, ...lessonRest } = lesson;
-                      return {
-                        ...lessonRest,
-                        videos: videos.map(toSlimVideo),
-                      };
-                    }),
-                  };
-                }),
-              };
-            })()
-          : undefined;
-
-        const lessons = selectedCourse?.filePath
-          ? selectedCourse.sections.flatMap((section) =>
-              section.lessons
-                .filter((lesson) => lesson.fsStatus !== "ghost")
-                .map((lesson) => ({
-                  id: lesson.id,
-                  fullPath: `${selectedCourse.filePath}/${section.path}/${lesson.path}`,
-                }))
-            )
-          : [];
-
-        const hasExportedVideoMap = selectedCourse
-          ? runtimeLive.runPromise(
-              loadExportStatusMap({
-                courseId: selectedCourse.id,
-                videos: (allVideos ?? []).map((v) => ({
-                  id: v.id,
-                  clips: v.clips as ExportClip[],
-                })),
-              })
-            )
-          : Promise.resolve({} as Record<string, boolean>);
-
-        const lessonFsMaps = runtimeLive.runPromise(
-          loadLessonFsMaps({ lessons })
-        );
-
-        const videoTranscripts = runtimeLive.runPromise(
-          courseOps.getVideoTranscripts(selectedCourseId)
-        );
-
-        const latestVersion = versions[0];
-        const isLatestVersion = !!(
-          selectedVersion &&
-          latestVersion &&
-          selectedVersion.id === latestVersion.id
-        );
-
-        const gitStatus = selectedCourse?.filePath
-          ? getGitStatusAsync(selectedCourse.filePath)
-          : Promise.resolve(null);
-
-        return {
-          courses,
-          selectedCourse: slimCourse,
-          versions,
-          selectedVersion,
-          isLatestVersion,
-          hasExportedVideoMap,
-          lessonFsMaps,
-          videoTranscripts,
-          gitStatus,
-          showMediaFilesList: featureFlags.isEnabled("ENABLE_MEDIA_FILES_LIST"),
-          viewMode,
-        };
+      courseViewEffect({
+        courseId: params.courseId!,
+        selectedVersionId,
+        viewMode,
       }),
   })(args);
 };

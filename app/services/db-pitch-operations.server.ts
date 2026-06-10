@@ -186,6 +186,7 @@ export const createPitchOperations = (db: DrizzleDB) => {
                   id: true,
                   kind: true,
                   title: true,
+                  description: true,
                   order: true,
                   videoId: true,
                 },

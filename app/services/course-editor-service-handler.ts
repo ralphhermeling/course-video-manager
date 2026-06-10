@@ -198,6 +198,14 @@ export const handleCourseEditorEvent = Effect.fn("handleCourseEditorEvent")(
         return { success: true };
       }
 
+      case "update-segment-description": {
+        yield* segmentOps.setSegmentDescription(
+          event.segmentId,
+          event.description
+        );
+        return { success: true };
+      }
+
       case "set-segment-kind": {
         yield* segmentOps.setSegmentKind(event.segmentId, event.kind);
         return { success: true };

@@ -1,0 +1,155 @@
+import { Effect } from "effect";
+import { CourseOperationsService } from "@/services/db-course-operations.server";
+import { VersionOperationsService } from "@/services/db-version-operations.server";
+import { FeatureFlagService } from "@/services/feature-flag-service";
+import {
+  loadExportStatusMap,
+  loadLessonFsMaps,
+  toSlimVideo,
+} from "@/services/course-loader-fs";
+import type { ExportClip } from "@/services/export-hash";
+import { getGitStatusAsync } from "@/services/git-status-service.server";
+import { runtimeLive } from "@/services/layer.server";
+
+/**
+ * The shared course-view loader Effect, used by both the full course page and
+ * the Section Workbench. Resolves the selected version, builds the slim
+ * section→lesson→video→segment tree (Segment Descriptions included), and kicks
+ * off the deferred filesystem/git/transcript work. Sections ending in
+ * `ARCHIVE` are dropped here so every consumer agrees on the visible set.
+ *
+ * The Section Workbench wraps this and narrows `selectedCourse.sections` to a
+ * single section — see `_app.courses.$courseId.sections.$sectionId.tsx`.
+ */
+export function courseViewEffect(input: {
+  courseId: string;
+  selectedVersionId: string | null;
+  viewMode: "expanded" | "compact";
+}) {
+  return Effect.gen(function* () {
+    const { courseId: selectedCourseId, selectedVersionId, viewMode } = input;
+    const courseOps = yield* CourseOperationsService;
+    const versionOps = yield* VersionOperationsService;
+    const featureFlags = yield* FeatureFlagService;
+
+    const courses = yield* courseOps.getCourses();
+
+    const versions = yield* versionOps.getCourseVersions(selectedCourseId);
+
+    let selectedVersion: Awaited<
+      ReturnType<typeof versionOps.getLatestCourseVersion>
+    > extends Effect.Effect<infer R, any, any>
+      ? R
+      : never = undefined;
+
+    if (selectedVersionId) {
+      selectedVersion = yield* versionOps
+        .getCourseVersionById(selectedVersionId)
+        .pipe(
+          Effect.catchTag("NotFoundError", () => Effect.succeed(undefined))
+        );
+    } else {
+      selectedVersion =
+        yield* versionOps.getLatestCourseVersion(selectedCourseId);
+    }
+
+    const selectedCourse = yield* courseOps
+      .getCourseWithSlimClipsById(selectedCourseId, selectedVersion?.id)
+      .pipe(
+        Effect.andThen((course) => {
+          if (!course) {
+            return undefined;
+          }
+
+          const allSections = course.versions[0]?.sections ?? [];
+
+          return {
+            ...course,
+            sections: allSections.filter((section) => {
+              return !section.path.endsWith("ARCHIVE");
+            }),
+          };
+        })
+      );
+
+    const allVideos = selectedCourse?.sections.flatMap((s) =>
+      s.lessons.flatMap((l) => l.videos)
+    );
+
+    const slimCourse = selectedCourse
+      ? (() => {
+          const { versions, sections, ...courseRest } = selectedCourse;
+          return {
+            ...courseRest,
+            sections: sections.map((section) => {
+              const { lessons, ...sectionRest } = section;
+              return {
+                ...sectionRest,
+                lessons: lessons.map((lesson) => {
+                  const { videos, ...lessonRest } = lesson;
+                  return {
+                    ...lessonRest,
+                    videos: videos.map(toSlimVideo),
+                  };
+                }),
+              };
+            }),
+          };
+        })()
+      : undefined;
+
+    const lessons = selectedCourse?.filePath
+      ? selectedCourse.sections.flatMap((section) =>
+          section.lessons
+            .filter((lesson) => lesson.fsStatus !== "ghost")
+            .map((lesson) => ({
+              id: lesson.id,
+              fullPath: `${selectedCourse.filePath}/${section.path}/${lesson.path}`,
+            }))
+        )
+      : [];
+
+    const hasExportedVideoMap = selectedCourse
+      ? runtimeLive.runPromise(
+          loadExportStatusMap({
+            courseId: selectedCourse.id,
+            videos: (allVideos ?? []).map((v) => ({
+              id: v.id,
+              clips: v.clips as ExportClip[],
+            })),
+          })
+        )
+      : Promise.resolve({} as Record<string, boolean>);
+
+    const lessonFsMaps = runtimeLive.runPromise(loadLessonFsMaps({ lessons }));
+
+    const videoTranscripts = runtimeLive.runPromise(
+      courseOps.getVideoTranscripts(selectedCourseId)
+    );
+
+    const latestVersion = versions[0];
+    const isLatestVersion = !!(
+      selectedVersion &&
+      latestVersion &&
+      selectedVersion.id === latestVersion.id
+    );
+
+    const gitStatus = selectedCourse?.filePath
+      ? getGitStatusAsync(selectedCourse.filePath)
+      : Promise.resolve(null);
+
+    return {
+      courses,
+      selectedCourse: slimCourse,
+      versions,
+      selectedVersion,
+      isLatestVersion,
+      hasExportedVideoMap,
+      lessonFsMaps,
+      videoTranscripts,
+      gitStatus,
+      showMediaFilesList: featureFlags.isEnabled("ENABLE_MEDIA_FILES_LIST"),
+      viewMode,
+    };
+  });
+}

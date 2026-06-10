@@ -257,6 +257,9 @@ export const segments = createTable("segment", {
     .notNull(),
   kind: text("kind").notNull().default("definition"),
   title: text("title").notNull().default(""),
+  // In-app planning note ("what am I going to do/say here"). Never published —
+  // publish skips it exactly as it skips the Segment plan itself.
+  description: text("description").notNull().default(""),
   order: varcharCollateC("order").notNull(),
   createdAt: timestamp("created_at", {
     mode: "date",

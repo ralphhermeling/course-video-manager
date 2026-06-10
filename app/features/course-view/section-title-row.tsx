@@ -13,6 +13,7 @@ export function SectionTitleRow({
   editSectionId,
   dispatch,
   submitEvent,
+  navigateTo,
 }: {
   section: { id: string; path: string };
   isGhostSection: boolean;
@@ -21,6 +22,8 @@ export function SectionTitleRow({
   editSectionId: string | null;
   dispatch: (action: courseViewReducer.Action) => void;
   submitEvent: (event: CourseEditorEvent) => void;
+  /** When set, the header navigates to the Section Workbench (see editor). */
+  navigateTo?: string;
 }) {
   const {
     editingTitle,
@@ -52,6 +55,7 @@ export function SectionTitleRow({
       onCancel={cancelEditing}
       onSave={saveTitle}
       onStartEditing={startEditingTitle}
+      navigateTo={navigateTo}
     />
   );
 }

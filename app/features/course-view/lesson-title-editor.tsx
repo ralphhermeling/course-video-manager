@@ -4,6 +4,7 @@ import { capitalizeTitle } from "@/utils/capitalize-title";
 import type { CourseEditorEvent } from "@/services/course-editor-service";
 import type { Lesson } from "./course-view-types";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "react-router";
 
 export function useLessonTitleEditor({
   lesson,
@@ -77,6 +78,7 @@ export function LessonTitleEditor({
   onCancel,
   onSave,
   onStartEditing,
+  navigateTo,
 }: {
   lesson: Lesson;
   isGhost: boolean;
@@ -89,6 +91,13 @@ export function LessonTitleEditor({
   onCancel: () => void;
   onSave: (v: string) => void;
   onStartEditing: () => void;
+  /**
+   * When set, the title's display state becomes a navigation link to the
+   * Section Workbench instead of a click-to-rename trigger. Renaming then
+   * happens only via the context-menu "Rename" (which still flips to the
+   * inline editor here). Editing always wins over the link.
+   */
+  navigateTo?: string;
 }) {
   const currentTitleDisplay = isGhost
     ? lesson.title || lesson.path
@@ -140,6 +149,22 @@ export function LessonTitleEditor({
           }}
         />
       </div>
+    );
+  }
+
+  if (navigateTo) {
+    return (
+      <Link
+        to={navigateTo}
+        className={cn(
+          "text-sm font-normal hover:underline",
+          !showGhostStyle && "text-foreground/90",
+          showGhostStyle && "text-muted-foreground/70 italic"
+        )}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {currentTitleDisplay}
+      </Link>
     );
   }
 

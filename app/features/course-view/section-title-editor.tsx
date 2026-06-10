@@ -5,6 +5,7 @@ import { capitalizeTitle } from "@/utils/capitalize-title";
 import type { courseViewReducer } from "@/features/course-view/course-view-reducer";
 import type { CourseEditorEvent } from "@/services/course-editor-service";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "react-router";
 
 /**
  * Pure helper: given an edit value, returns the rename event payload
@@ -130,6 +131,7 @@ export function SectionTitleEditor({
   onCancel,
   onSave,
   onStartEditing,
+  navigateTo,
 }: {
   sectionPath: string;
   isGhostSection: boolean;
@@ -142,6 +144,13 @@ export function SectionTitleEditor({
   onCancel: () => void;
   onSave: (v: string) => void;
   onStartEditing: () => void;
+  /**
+   * When set, the section header's display state becomes a navigation link to
+   * the Section Workbench instead of a click-to-rename trigger. Renaming then
+   * happens only via the context-menu "Rename" (which flips to the inline
+   * editor through the `editSectionId` effect). Editing always wins.
+   */
+  navigateTo?: string;
 }) {
   const handledRef = useRef(false);
   const titleClass = "text-base font-semibold";
@@ -186,6 +195,22 @@ export function SectionTitleEditor({
           }}
         />
       </div>
+    );
+  }
+
+  if (navigateTo) {
+    return (
+      <Link
+        to={navigateTo}
+        className={cn(
+          titleClass,
+          "hover:underline",
+          showGhostStyle && "text-muted-foreground/70 italic"
+        )}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {sectionPath}
+      </Link>
     );
   }
 

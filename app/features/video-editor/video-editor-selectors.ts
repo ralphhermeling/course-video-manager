@@ -371,3 +371,39 @@ export const getShowCenterLine = (
     obsConnectorState.scene === "Camera"
   );
 };
+
+/**
+ * Is a capture in progress — recording *or* still settling afterwards?
+ *
+ * The Segment Panel is editable only when fully idle and every clip is
+ * resolved; this selector drives its read-only gate so the freeze covers the
+ * whole capture, not just while OBS reports "recording". Returns `true` when
+ * **any** of:
+ *   1. OBS is actively recording, OR
+ *   2. a recording session is still `recording` or `polling` (settling), OR
+ *   3. an unresolved pending optimistic clip remains (not yet on-database,
+ *      archived, or orphaned).
+ */
+export const isCaptureInProgress = (
+  obsConnectorState: OBSConnectionOuterState,
+  items: TimelineItem[],
+  sessions: RecordingSession[]
+): boolean => {
+  if (obsConnectorState.type === "obs-recording") return true;
+
+  if (
+    sessions.some(
+      (session) =>
+        session.status === "recording" || session.status === "polling"
+    )
+  ) {
+    return true;
+  }
+
+  return items.some(
+    (item) =>
+      item.type === "optimistically-added" &&
+      !item.shouldArchive &&
+      !item.isOrphaned
+  );
+};
