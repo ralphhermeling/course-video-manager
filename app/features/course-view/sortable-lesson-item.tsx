@@ -521,7 +521,6 @@ export function SortableLessonItem({
               revealVideoFetcher={revealVideoFetcher}
               deleteVideoFileFetcher={deleteVideoFileFetcher}
               submitDeleteVideo={submitDeleteVideo}
-              submitEvent={submitEvent}
             />
           </div>
         )}

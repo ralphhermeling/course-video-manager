@@ -37,6 +37,7 @@ import { Link, useFetcher, useSearchParams, useSubmit } from "react-router";
 import { courseEditorFetcherKeyForEvent } from "@/features/course-view/optimistic-applier";
 import type { CourseEditorEvent } from "@/services/course-editor-service";
 import { SegmentDndProvider } from "@/features/segments/segment-dnd-context";
+import { CreateSegmentDialogProvider } from "@/features/segments/create-segment-dialog";
 import { PitchVideoSegments } from "@/features/segments/pitch-video-segments";
 import { pitchBackLink } from "@/features/pitches/pitch-back-link";
 import { X_POST_CHARACTER_LIMIT } from "@/features/pitches/x-character-count";
@@ -381,60 +382,65 @@ export default function PitchDetailRoute(props: Route.ComponentProps) {
                 No videos yet. Click "Add video" below to create one.
               </p>
             ) : (
-              <SegmentDndProvider
-                videos={videos.map((v) => ({ id: v.id, segments: v.segments }))}
-                onMove={(drop) =>
-                  submitEvent({
-                    type: "move-segment",
-                    segmentId: drop.segmentId,
-                    targetVideoId: drop.targetVideoId,
-                    beforeSegmentId: drop.beforeSegmentId,
-                  })
-                }
-              >
-                <div className="space-y-5">
-                  {videos.map((video) => (
-                    <div key={video.id} className="space-y-2">
-                      <Link
-                        to={`/videos/${video.id}/edit`}
-                        className="text-left items-center group/thumb bg-muted rounded overflow-hidden inline-flex hover:ring-1 hover:ring-foreground/20 transition-all"
-                      >
-                        <div className="relative aspect-video w-32 bg-muted">
-                          {video.firstClipId ? (
-                            <img
-                              src={`/clips/${video.firstClipId}/first-frame`}
-                              alt={video.path}
-                              className="w-full h-full object-cover"
-                              loading="lazy"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center border-r">
-                              <FileVideo className="w-6 h-6 text-muted-foreground/40" />
-                            </div>
-                          )}
-                          {!hasExportedVideoMap[video.id] && (
-                            <div className="absolute top-2 left-2 w-2 h-2 rounded-full bg-red-500" />
-                          )}
+              <CreateSegmentDialogProvider submitEvent={submitEvent}>
+                <SegmentDndProvider
+                  videos={videos.map((v) => ({
+                    id: v.id,
+                    segments: v.segments,
+                  }))}
+                  onMove={(drop) =>
+                    submitEvent({
+                      type: "move-segment",
+                      segmentId: drop.segmentId,
+                      targetVideoId: drop.targetVideoId,
+                      beforeSegmentId: drop.beforeSegmentId,
+                    })
+                  }
+                >
+                  <div className="space-y-5">
+                    {videos.map((video) => (
+                      <div key={video.id} className="space-y-2">
+                        <Link
+                          to={`/videos/${video.id}/edit`}
+                          className="text-left items-center group/thumb bg-muted rounded overflow-hidden inline-flex hover:ring-1 hover:ring-foreground/20 transition-all"
+                        >
+                          <div className="relative aspect-video w-32 bg-muted">
+                            {video.firstClipId ? (
+                              <img
+                                src={`/clips/${video.firstClipId}/first-frame`}
+                                alt={video.path}
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center border-r">
+                                <FileVideo className="w-6 h-6 text-muted-foreground/40" />
+                              </div>
+                            )}
+                            {!hasExportedVideoMap[video.id] && (
+                              <div className="absolute top-2 left-2 w-2 h-2 rounded-full bg-red-500" />
+                            )}
+                          </div>
+                          <div className="py-1 px-6 flex flex-col items-center text-muted-foreground">
+                            <span className="text-xs truncate text-foreground transition-colors">
+                              {video.path || "Untitled"}
+                            </span>
+                            <span className="text-xs font-mono mt-0.5">
+                              {formatSecondsToTimeCode(video.totalDuration)}
+                            </span>
+                          </div>
+                        </Link>
+                        <div className="pl-1">
+                          <PitchVideoSegments
+                            video={video}
+                            submitEvent={submitEvent}
+                          />
                         </div>
-                        <div className="py-1 px-6 flex flex-col items-center text-muted-foreground">
-                          <span className="text-xs truncate text-foreground transition-colors">
-                            {video.path || "Untitled"}
-                          </span>
-                          <span className="text-xs font-mono mt-0.5">
-                            {formatSecondsToTimeCode(video.totalDuration)}
-                          </span>
-                        </div>
-                      </Link>
-                      <div className="pl-1">
-                        <PitchVideoSegments
-                          video={video}
-                          submitEvent={submitEvent}
-                        />
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </SegmentDndProvider>
+                    ))}
+                  </div>
+                </SegmentDndProvider>
+              </CreateSegmentDialogProvider>
             )}
             <div className="pt-2">
               <Button

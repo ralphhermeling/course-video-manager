@@ -136,6 +136,13 @@ export type CourseEditorEvent =
       type: "create-segment";
       videoId: string;
       kind: SegmentKind;
+      /** Initial title for the new Segment. Absent/empty leaves it untitled. */
+      title?: string;
+      /**
+       * Insertion anchor: place the new Segment immediately before this one in
+       * the Video's plan. `null`/absent appends to the end.
+       */
+      beforeSegmentId?: string | null;
     }
   | {
       type: "rename-segment";
@@ -277,7 +284,9 @@ export interface CourseEditorService {
   // Segment operations
   createSegment(
     videoId: string,
-    kind: SegmentKind
+    kind: SegmentKind,
+    title?: string,
+    beforeSegmentId?: string | null
   ): Promise<{ success: true; segmentId: string }>;
 
   renameSegment(segmentId: string, title: string): Promise<{ success: true }>;
@@ -489,11 +498,13 @@ export function createCourseEditorService(
     },
 
     // --- Segment operations ---
-    async createSegment(videoId, kind) {
+    async createSegment(videoId, kind, title = "", beforeSegmentId = null) {
       return send({
         type: "create-segment",
         videoId,
         kind,
+        title,
+        beforeSegmentId,
       }) as Promise<{ success: true; segmentId: string }>;
     },
 

@@ -1,25 +1,13 @@
 import { type DependencyLessonItem } from "@/components/dependency-selector";
-import { SectionModals } from "./section-modals";
-import { Badge } from "@/components/ui/badge";
-import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { cn } from "@/lib/utils";
 import { courseViewReducer } from "@/features/course-view/course-view-reducer";
 import type { CourseEditorEvent } from "@/services/course-editor-service";
-import { SortableLessonItem } from "./sortable-lesson-item";
-import { SortableSectionItem } from "./sortable-section-item";
-import { SectionDescriptionEditor } from "./section-description-editor";
-import { SectionTitleRow } from "./section-title-row";
-import { SectionContextMenuItems } from "./section-context-menu";
-import {
-  filterLessons,
-  calcSectionDuration,
-  computeSectionDependencyRuns,
-} from "./section-grid-utils";
-import { CompactLessonList, runSpacingClass } from "./dep-group-spine";
+import { SectionCard } from "./section-card";
 import { DependencyDragProvider } from "./dependency-drag-context";
+import { SegmentDndProvider } from "@/features/segments/segment-dnd-context";
+import { CreateSegmentDialogProvider } from "@/features/segments/create-segment-dialog";
 import { type LoaderData } from "./course-view-types";
 
-import { formatSecondsToTimeCode } from "@/services/utils";
 import {
   DndContext,
   DragOverlay,
@@ -27,20 +15,45 @@ import {
   type DragEndEvent,
   type useSensors,
 } from "@dnd-kit/core";
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-  rectSortingStrategy,
-} from "@dnd-kit/sortable";
+import { SortableContext, rectSortingStrategy } from "@dnd-kit/sortable";
 import { useLessonDrag } from "./use-lesson-drag";
-import { ChevronRight, Ghost, GripVertical } from "lucide-react";
-import { Fragment, useCallback, useMemo } from "react";
+import { useCallback, useMemo, type ReactNode } from "react";
 import { useNavigate, useFetcher } from "react-router";
 import { useLessonSelectionClear } from "./use-lesson-selection-clear";
 
-/** Insertion indicator shown at the drop anchor during a cross-section drag. */
-function DropLine() {
-  return <div className="h-0.5 my-0.5 rounded-full bg-primary" />;
+/**
+ * Wraps the compact grid in a single Segment drag-and-drop context spanning
+ * every Video, so a Segment can be dropped onto any Video regardless of its
+ * lesson or section. Renders children bare when disabled (expanded/read-only),
+ * where Segments aren't draggable.
+ */
+function MaybeSegmentDnd({
+  enabled,
+  videos,
+  submitEvent,
+  children,
+}: {
+  enabled: boolean;
+  videos: { id: string; segments: { id: string }[] }[];
+  submitEvent: (event: CourseEditorEvent) => void;
+  children: ReactNode;
+}) {
+  if (!enabled) return <>{children}</>;
+  return (
+    <SegmentDndProvider
+      videos={videos}
+      onMove={(drop) =>
+        submitEvent({
+          type: "move-segment",
+          segmentId: drop.segmentId,
+          targetVideoId: drop.targetVideoId,
+          beforeSegmentId: drop.beforeSegmentId,
+        })
+      }
+    >
+      {children}
+    </SegmentDndProvider>
+  );
 }
 
 export function SectionGrid({
@@ -124,6 +137,22 @@ export function SectionGrid({
     [displaySections]
   );
 
+  // Every Video across the course, so one hoisted SegmentDndProvider can resolve
+  // a drag onto any Video — including one in a different lesson or section. A
+  // per-lesson provider would trap segments inside their own lesson.
+  const allVideosForDnd = useMemo(
+    () =>
+      displaySections.flatMap((section) =>
+        section.lessons.flatMap((lesson) =>
+          lesson.videos.map((video) => ({
+            id: video.id,
+            segments: video.segments ?? [],
+          }))
+        )
+      ),
+    [displaySections]
+  );
+
   // Build flat lessons list for dependency selector
   const allFlatLessons: DependencyLessonItem[] = displaySections.flatMap(
     (section, sectionIdx) =>
@@ -202,255 +231,63 @@ export function SectionGrid({
         onDragCancel={onDragCancel}
       >
         <SortableContext items={allSectionIds} strategy={rectSortingStrategy}>
-          <div
-            className={cn(
-              "grid grid-cols-1 gap-8",
-              viewMode === "compact" ? "lg:grid-cols-3" : "lg:grid-cols-2"
-            )}
-            onClick={handleGridClick}
-          >
-            {displaySections.map((section) => {
-              const lessons = section.lessons;
-
-              const { filteredLessons, hasActiveFilters } = filterLessons(
-                lessons,
-                { priorityFilter, iconFilter, fsStatusFilter, searchQuery }
-              );
-
-              const sectionDuration = calcSectionDuration(lessons);
-
-              // Dependency Group runs + spine pairs. Only in compact view, and
-              // suppressed under any active filter (the rendered list no longer
-              // reflects true adjacency). See CONTEXT.md / docs/adr/0010.
-              const { runs, spinePairs, revalidateKey } =
-                computeSectionDependencyRuns(
-                  lessons,
-                  filteredLessons,
-                  viewMode === "compact" && !hasActiveFilters
-                );
-
-              const isGhostSection =
-                lessons.length === 0 ||
-                lessons.every((l) => l.fsStatus === "ghost");
-              const showGhostSectionStyle = isGhostSection && !isGhostCourse;
-
-              return (
-                <SortableSectionItem
-                  key={section.id}
-                  id={section.id}
-                  compact={viewMode === "compact"}
-                >
-                  {(dragHandleListeners) => (
-                    <>
-                      <ContextMenu>
-                        <ContextMenuTrigger asChild>
-                          <div className="cursor-context-menu">
-                            <div
-                              className={cn(
-                                viewMode !== "compact" && "border-b bg-muted/30"
-                              )}
-                            >
-                              <div
-                                className={
-                                  viewMode === "compact"
-                                    ? "px-2 py-1"
-                                    : "px-4 py-3"
-                                }
-                              >
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2">
-                                    {!isReadOnly && (
-                                      <button
-                                        className="cursor-grab active:cursor-grabbing text-muted-foreground/50 hover:text-muted-foreground touch-none"
-                                        {...dragHandleListeners}
-                                      >
-                                        <GripVertical className="w-4 h-4" />
-                                      </button>
-                                    )}
-                                    <SectionTitleRow
-                                      section={section}
-                                      isGhostSection={isGhostSection}
-                                      showGhostStyle={showGhostSectionStyle}
-                                      isReadOnly={isReadOnly}
-                                      editSectionId={editSectionId}
-                                      dispatch={dispatch}
-                                      submitEvent={submitEvent}
-                                    />
-                                    {showGhostSectionStyle && (
-                                      <Ghost className="w-3.5 h-3.5 text-muted-foreground/40" />
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-1.5">
-                                    {!isGhostSection &&
-                                      viewMode === "expanded" && (
-                                        <Badge
-                                          variant="secondary"
-                                          className="text-[10px]"
-                                        >
-                                          {formatSecondsToTimeCode(
-                                            sectionDuration
-                                          )}
-                                        </Badge>
-                                      )}
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        toggleSection(section.id);
-                                      }}
-                                      className="text-muted-foreground/50 hover:text-muted-foreground transition-colors p-0.5"
-                                    >
-                                      <ChevronRight
-                                        className={cn(
-                                          "w-4 h-4 transition-transform",
-                                          (!collapsedSections.has(section.id) ||
-                                            searchQuery) &&
-                                            "rotate-90"
-                                        )}
-                                      />
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                              {viewMode === "expanded" && (
-                                <SectionDescriptionEditor
-                                  sectionId={section.id}
-                                  description={section.description ?? ""}
-                                  isReadOnly={isReadOnly}
-                                  submitEvent={submitEvent}
-                                />
-                              )}
-                            </div>
-                            {(!collapsedSections.has(section.id) ||
-                              searchQuery) && (
-                              <CompactLessonList
-                                pairs={spinePairs}
-                                revalidateKey={revalidateKey}
-                                className={
-                                  viewMode === "compact" ? "px-2 py-1" : "p-2"
-                                }
-                              >
-                                <SortableContext
-                                  items={lessons.map((l) => l.id)}
-                                  strategy={verticalListSortingStrategy}
-                                >
-                                  {hasActiveFilters &&
-                                    filteredLessons.length === 0 && (
-                                      <p className="text-xs text-muted-foreground text-center py-3">
-                                        No matching lessons
-                                      </p>
-                                    )}
-                                  {/* Contiguous Dependency Group runs: spacing
-                                      separates blocks, the measured overlay
-                                      draws the icon-to-icon dashed lines. */}
-                                  {runs.map((run) => (
-                                    <div
-                                      key={run.lessons[0]!.id}
-                                      className={runSpacingClass(
-                                        run.lessons.length > 1
-                                      )}
-                                    >
-                                      {run.lessons.map((lesson, idx) => (
-                                        <Fragment key={lesson.id}>
-                                          {dropIndicator?.targetSectionId ===
-                                            section.id &&
-                                            dropIndicator.beforeLessonId ===
-                                              lesson.id && <DropLine />}
-                                          <SortableLessonItem
-                                            lesson={lesson}
-                                            lessonIndex={run.startIndex + idx}
-                                            section={section}
-                                            data={data}
-                                            navigate={navigate}
-                                            allFlatLessons={allFlatLessons}
-                                            addVideoToLessonId={
-                                              addVideoToLessonId
-                                            }
-                                            convertToGhostLessonId={
-                                              convertToGhostLessonId
-                                            }
-                                            deleteLessonId={deleteLessonId}
-                                            createOnDiskLessonId={
-                                              createOnDiskLessonId
-                                            }
-                                            editDescriptionLessonId={
-                                              editDescriptionLessonId
-                                            }
-                                            dispatch={dispatch}
-                                            submitEvent={submitEvent}
-                                            startExportUpload={
-                                              startExportUpload
-                                            }
-                                            revealVideoFetcher={
-                                              revealVideoFetcher
-                                            }
-                                            deleteVideoFileFetcher={
-                                              deleteVideoFileFetcher
-                                            }
-                                            submitDeleteVideo={
-                                              submitDeleteVideo
-                                            }
-                                            allSections={currentCourse.sections}
-                                            dependencyMap={dependencyMap}
-                                            isGhostCourse={isGhostCourse}
-                                            compact={viewMode === "compact"}
-                                            isSelected={
-                                              lessonSelection?.sectionId ===
-                                                section.id &&
-                                              lessonSelection.lessonIds.has(
-                                                lesson.id
-                                              )
-                                            }
-                                            isBulkDragPeer={
-                                              bulkDragIds != null &&
-                                              bulkDragIds.has(lesson.id) &&
-                                              lesson.id !== activeLesson?.id
-                                            }
-                                          />
-                                        </Fragment>
-                                      ))}
-                                    </div>
-                                  ))}
-                                  {/* Anchor at the end of the list (append, or
-                                      dropping into an empty section). */}
-                                  {dropIndicator?.targetSectionId ===
-                                    section.id &&
-                                    dropIndicator.beforeLessonId === null && (
-                                      <DropLine />
-                                    )}
-                                </SortableContext>
-                              </CompactLessonList>
-                            )}
-                          </div>
-                        </ContextMenuTrigger>
-                        <SectionContextMenuItems
-                          section={section}
-                          lessons={lessons}
-                          allSectionIds={allSectionIds}
-                          isReadOnly={isReadOnly}
-                          isGhostSection={isGhostSection}
-                          dispatch={dispatch}
-                          submitEvent={submitEvent}
-                        />
-                      </ContextMenu>
-                      <SectionModals
-                        sectionId={section.id}
-                        sectionPath={section.path}
-                        lessonCount={lessons.length}
-                        addGhostLessonSectionId={addGhostLessonSectionId}
-                        insertAdjacentLessonId={insertAdjacentLessonId}
-                        insertPosition={insertPosition}
-                        archiveSectionId={archiveSectionId}
-                        courseFilePath={currentCourse.filePath}
-                        dispatch={dispatch}
-                        submitEvent={submitEvent}
-                      />
-                    </>
-                  )}
-                </SortableSectionItem>
-              );
-            })}
-          </div>
+          <CreateSegmentDialogProvider submitEvent={submitEvent}>
+            <MaybeSegmentDnd
+              enabled={viewMode === "compact" && !isReadOnly}
+              videos={allVideosForDnd}
+              submitEvent={submitEvent}
+            >
+              <div
+                className={cn(
+                  "grid grid-cols-1 gap-8",
+                  viewMode === "compact" ? "lg:grid-cols-3" : "lg:grid-cols-2"
+                )}
+                onClick={handleGridClick}
+              >
+                {displaySections.map((section) => (
+                  <SectionCard
+                    key={section.id}
+                    section={section}
+                    currentCourse={currentCourse}
+                    data={data}
+                    priorityFilter={priorityFilter}
+                    iconFilter={iconFilter}
+                    fsStatusFilter={fsStatusFilter}
+                    searchQuery={searchQuery}
+                    viewMode={viewMode}
+                    addGhostLessonSectionId={addGhostLessonSectionId}
+                    insertAdjacentLessonId={insertAdjacentLessonId}
+                    insertPosition={insertPosition}
+                    editSectionId={editSectionId}
+                    addVideoToLessonId={addVideoToLessonId}
+                    convertToGhostLessonId={convertToGhostLessonId}
+                    deleteLessonId={deleteLessonId}
+                    createOnDiskLessonId={createOnDiskLessonId}
+                    editDescriptionLessonId={editDescriptionLessonId}
+                    archiveSectionId={archiveSectionId}
+                    collapsedSections={collapsedSections}
+                    toggleSection={toggleSection}
+                    lessonSelection={lessonSelection}
+                    dispatch={dispatch}
+                    submitEvent={submitEvent}
+                    navigate={navigate}
+                    startExportUpload={startExportUpload}
+                    revealVideoFetcher={revealVideoFetcher}
+                    deleteVideoFileFetcher={deleteVideoFileFetcher}
+                    submitDeleteVideo={submitDeleteVideo}
+                    isGhostCourse={isGhostCourse}
+                    isReadOnly={isReadOnly}
+                    allSectionIds={allSectionIds}
+                    allFlatLessons={allFlatLessons}
+                    dependencyMap={dependencyMap}
+                    dropIndicator={dropIndicator}
+                    activeLesson={activeLesson}
+                    bulkDragIds={bulkDragIds}
+                  />
+                ))}
+              </div>
+            </MaybeSegmentDnd>
+          </CreateSegmentDialogProvider>
         </SortableContext>
         <DragOverlay>
           {activeLesson ? (

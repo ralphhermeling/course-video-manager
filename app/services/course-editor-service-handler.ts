@@ -186,7 +186,9 @@ export const handleCourseEditorEvent = Effect.fn("handleCourseEditorEvent")(
       case "create-segment": {
         const segment = yield* segmentOps.createSegment(
           event.videoId,
-          event.kind
+          event.kind,
+          event.beforeSegmentId ?? null,
+          event.title?.trim() ?? ""
         );
         return { success: true, segmentId: segment.id };
       }

@@ -15,10 +15,13 @@ import {
 import { SegmentContextMenuContent } from "@/features/segments/segment-menu-items";
 import { SegmentTitleEditor } from "@/features/segments/segment-title-editor";
 import {
-  SegmentDndProvider,
+  SegmentDropLine,
   SegmentSortableList,
   SortableSegment,
+  useSegmentDropPreview,
 } from "@/features/segments/segment-dnd-context";
+import { useRequestCreateSegment } from "@/features/segments/create-segment-dialog";
+import { Fragment } from "react";
 import { VideoContextMenuItems } from "./video-context-menu";
 import type {
   LoaderData,
@@ -64,7 +67,10 @@ export function LessonSegmentTree({
 
   if (videos.length === 0) return null;
 
-  const tree = (
+  // Drag-and-drop is wired by a single SegmentDndProvider hoisted to the whole
+  // compact grid (see SectionGrid), so a Segment can be dragged to any Video,
+  // not just the ones inside this lesson. Here we only render the tree.
+  return (
     <div
       className={cn(
         "mt-1 space-y-1",
@@ -86,27 +92,6 @@ export function LessonSegmentTree({
       ))}
     </div>
   );
-
-  if (isReadOnly) return tree;
-
-  return (
-    <SegmentDndProvider
-      videos={videos.map((v) => ({
-        id: v.id,
-        segments: v.segments ?? [],
-      }))}
-      onMove={(drop) =>
-        submitEvent({
-          type: "move-segment",
-          segmentId: drop.segmentId,
-          targetVideoId: drop.targetVideoId,
-          beforeSegmentId: drop.beforeSegmentId,
-        })
-      }
-    >
-      {tree}
-    </SegmentDndProvider>
-  );
 }
 
 function VideoSegmentNode({
@@ -122,6 +107,9 @@ function VideoSegmentNode({
   submitEvent: (event: CourseEditorEvent) => void;
 } & VideoMenuProps) {
   const segments = video.segments ?? [];
+  const dropPreview = useSegmentDropPreview();
+  const previewInThisVideo =
+    dropPreview?.targetVideoId === video.id ? dropPreview : null;
 
   const videoRow = (
     <Link
@@ -139,7 +127,6 @@ function VideoSegmentNode({
         <VideoContextMenuItems
           video={video}
           lesson={lesson}
-          submitEvent={submitEvent}
           {...videoMenuProps}
         />
       </ContextMenu>
@@ -148,24 +135,38 @@ function VideoSegmentNode({
         segmentIds={segments.map((s) => s.id)}
         className="mt-0.5 space-y-0.5 min-h-[0.75rem]"
       >
-        {segments.map((segment) =>
-          isReadOnly ? (
+        {segments.map((segment, index) => {
+          // "Add after" anchors before the next segment (null = append to end).
+          const nextSegmentId = segments[index + 1]?.id ?? null;
+          const node = isReadOnly ? (
             <SegmentNode
-              key={segment.id}
               segment={segment}
+              videoId={video.id}
+              nextSegmentId={nextSegmentId}
               isReadOnly={isReadOnly}
               submitEvent={submitEvent}
             />
           ) : (
-            <SortableSegment key={segment.id} id={segment.id}>
+            <SortableSegment id={segment.id}>
               <SegmentNode
                 segment={segment}
+                videoId={video.id}
+                nextSegmentId={nextSegmentId}
                 isReadOnly={isReadOnly}
                 submitEvent={submitEvent}
               />
             </SortableSegment>
-          )
-        )}
+          );
+          return (
+            <Fragment key={segment.id}>
+              {previewInThisVideo?.beforeSegmentId === segment.id && (
+                <SegmentDropLine />
+              )}
+              {node}
+            </Fragment>
+          );
+        })}
+        {previewInThisVideo?.beforeSegmentId === null && <SegmentDropLine />}
       </SegmentSortableList>
     </div>
   );
@@ -173,15 +174,20 @@ function VideoSegmentNode({
 
 function SegmentNode({
   segment,
+  videoId,
+  nextSegmentId,
   isReadOnly,
   submitEvent,
 }: {
   segment: Segment;
+  videoId: string;
+  nextSegmentId: string | null;
   isReadOnly: boolean;
   submitEvent: (event: CourseEditorEvent) => void;
 }) {
   const kind = segment.kind as SegmentKind;
   const Icon = SEGMENT_KIND_ICONS[kind];
+  const requestCreateSegment = useRequestCreateSegment();
 
   const row = (
     <div className="flex items-center gap-1.5 text-foreground/80 cursor-context-menu">
@@ -213,6 +219,20 @@ function SegmentNode({
               type: "set-segment-kind",
               segmentId: segment.id,
               kind: nextKind,
+            })
+          }
+          onAddBefore={(kind) =>
+            requestCreateSegment({
+              videoId,
+              kind,
+              beforeSegmentId: segment.id,
+            })
+          }
+          onAddAfter={(kind) =>
+            requestCreateSegment({
+              videoId,
+              kind,
+              beforeSegmentId: nextSegmentId,
             })
           }
           onDelete={() =>

@@ -89,14 +89,18 @@ const loadVideoEditorFsData = (opts: {
 
     let files: FileMetadata[] = [];
 
-    if (lesson) {
+    if (lesson && lesson.section.repoVersion.repo.filePath) {
       const repo = lesson.section.repoVersion.repo;
       const section = lesson.section;
       const lessonPath = path.join(repo.filePath!, section.path, lesson.path);
 
+      // A Video can live under a Ghost Lesson (or a Ghost Course), which has no
+      // directory on disk. Treat a missing lesson directory as "no files"
+      // instead of letting readDirectory fail the whole loader.
       const allFilesInDirectory = yield* fs
         .readDirectory(lessonPath, { recursive: true })
         .pipe(
+          Effect.catchAll(() => Effect.succeed([] as string[])),
           Effect.map((filesResult) =>
             filesResult.map((file) => path.join(lessonPath, file))
           )

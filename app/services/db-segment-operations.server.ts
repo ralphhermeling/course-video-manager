@@ -33,16 +33,37 @@ export const createSegmentOperations = (db: DrizzleDB) => {
     );
 
   /**
-   * Create a Segment slotted at the end of the Video's plan, with an empty
-   * title and the given kind (defaulting to Definition).
+   * Create a Segment in the Video's plan, with the given `title` (default
+   * empty) and `kind` (defaulting to Definition). `beforeSegmentId` anchors the
+   * new Segment immediately before that one; `null`/absent appends to the end.
+   * Mirrors the fractional-key positioning of {@link moveSegment}.
    */
   const createSegment = Effect.fn("createSegment")(function* (
     videoId: string,
-    kind: SegmentKind = DEFAULT_SEGMENT_KIND
+    kind: SegmentKind = DEFAULT_SEGMENT_KIND,
+    beforeSegmentId: string | null = null,
+    title: string = ""
   ) {
     const existing = yield* listSegmentsByVideoId(videoId);
-    const lastOrder = existing.at(-1)?.order ?? null;
-    const [order] = generateNKeysBetween(lastOrder, null, 1);
+
+    let prevOrder: string | null;
+    let nextOrder: string | null;
+    if (beforeSegmentId === null) {
+      prevOrder = existing.at(-1)?.order ?? null;
+      nextOrder = null;
+    } else {
+      const idx = existing.findIndex((s) => s.id === beforeSegmentId);
+      if (idx === -1) {
+        return yield* new NotFoundError({
+          type: "segment",
+          params: { id: beforeSegmentId },
+        });
+      }
+      prevOrder = existing[idx - 1]?.order ?? null;
+      nextOrder = existing[idx]!.order;
+    }
+
+    const [order] = generateNKeysBetween(prevOrder, nextOrder, 1);
 
     const [segment] = yield* makeDbCall(() =>
       db
@@ -50,7 +71,7 @@ export const createSegmentOperations = (db: DrizzleDB) => {
         .values({
           videoId,
           kind,
-          title: "",
+          title,
           order: order!,
         })
         .returning()

@@ -19,7 +19,7 @@ import type { LoaderData, Section, Lesson, Video } from "./course-view-types";
 import { useGenerateChaptersAction } from "./generate-chapters-context";
 import { PurgeExportMenuItem } from "./export-status";
 import { AddSegmentSubMenu } from "@/features/segments/segment-menu-items";
-import type { CourseEditorEvent } from "@/services/course-editor-service";
+import { useRequestCreateSegment } from "@/features/segments/create-segment-dialog";
 
 /**
  * The full set of video context-menu items, shared between the expanded
@@ -38,7 +38,6 @@ export function VideoContextMenuItems({
   revealVideoFetcher,
   deleteVideoFileFetcher,
   submitDeleteVideo,
-  submitEvent,
 }: {
   video: Video;
   section: Section;
@@ -50,9 +49,9 @@ export function VideoContextMenuItems({
   revealVideoFetcher: ReturnType<typeof useFetcher>;
   deleteVideoFileFetcher: ReturnType<typeof useFetcher>;
   submitDeleteVideo: (videoId: string) => void;
-  submitEvent: (event: CourseEditorEvent) => void;
 }) {
   const openGenerateChapters = useGenerateChaptersAction();
+  const requestCreateSegment = useRequestCreateSegment();
   const isReadOnly = !data.isLatestVersion;
   const canGenerateChapters = !isReadOnly && video.clipCount > 0;
 
@@ -120,10 +119,10 @@ export function VideoContextMenuItems({
         <>
           <AddSegmentSubMenu
             onAdd={(kind) =>
-              submitEvent({
-                type: "create-segment",
+              requestCreateSegment({
                 videoId: video.id,
                 kind,
+                beforeSegmentId: null,
               })
             }
           />

@@ -7,7 +7,6 @@ import { Link, useNavigate, useFetcher } from "react-router";
 import type { LoaderData, Section, Lesson, Video } from "./course-view-types";
 import { UnexportedDot } from "./export-status";
 import { VideoContextMenuItems } from "./video-context-menu";
-import type { CourseEditorEvent } from "@/services/course-editor-service";
 import {
   Tooltip,
   TooltipContent,
@@ -26,7 +25,6 @@ function VideoThumbnailItem({
   revealVideoFetcher,
   deleteVideoFileFetcher,
   submitDeleteVideo,
-  submitEvent,
 }: {
   video: Video;
   section: Section;
@@ -38,7 +36,6 @@ function VideoThumbnailItem({
   revealVideoFetcher: ReturnType<typeof useFetcher>;
   deleteVideoFileFetcher: ReturnType<typeof useFetcher>;
   submitDeleteVideo: (videoId: string) => void;
-  submitEvent: (event: CourseEditorEvent) => void;
 }) {
   const isReadOnly = !data.isLatestVersion;
   const totalDuration = video.totalDuration;
@@ -108,7 +105,6 @@ function VideoThumbnailItem({
         revealVideoFetcher={revealVideoFetcher}
         deleteVideoFileFetcher={deleteVideoFileFetcher}
         submitDeleteVideo={submitDeleteVideo}
-        submitEvent={submitEvent}
       />
     </ContextMenu>
   );
@@ -125,7 +121,6 @@ export function VideoThumbnailGrid({
   revealVideoFetcher,
   deleteVideoFileFetcher,
   submitDeleteVideo,
-  submitEvent,
 }: {
   videos: Video[];
   section: Section;
@@ -137,7 +132,6 @@ export function VideoThumbnailGrid({
   revealVideoFetcher: ReturnType<typeof useFetcher>;
   deleteVideoFileFetcher: ReturnType<typeof useFetcher>;
   submitDeleteVideo: (videoId: string) => void;
-  submitEvent: (event: CourseEditorEvent) => void;
 }) {
   if (videos.length === 0) return null;
 
@@ -156,7 +150,6 @@ export function VideoThumbnailGrid({
           revealVideoFetcher={revealVideoFetcher}
           deleteVideoFileFetcher={deleteVideoFileFetcher}
           submitDeleteVideo={submitDeleteVideo}
-          submitEvent={submitEvent}
         />
       ))}
     </div>

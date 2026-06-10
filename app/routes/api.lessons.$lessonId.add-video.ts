@@ -26,10 +26,15 @@ export const action = async (args: Route.ActionArgs) => {
           originalFootagePath: "",
         });
 
+        // The article-writer "add video to next lesson" flow explicitly opts
+        // into navigating to the write page. Every other caller (e.g. the
+        // course-view Add Video modal) stays put — the new video shows up via
+        // loader revalidation, with no redirect into the editor.
         const url = new URL(args.request.url);
-        const redirectTo =
-          url.searchParams.get("redirectTo") === "write" ? "write" : "edit";
-        return redirect(`/videos/${video.id}/${redirectTo}`);
+        if (url.searchParams.get("redirectTo") === "write") {
+          return redirect(`/videos/${video.id}/write`);
+        }
+        return { videoId: video.id };
       }),
   })(args);
 };

@@ -70,6 +70,17 @@ export function LessonContextMenuContent({
           {isGhost ? (
             <>
               <ContextMenuItem
+                onSelect={() =>
+                  dispatch({
+                    type: "set-add-video-to-lesson-id",
+                    lessonId: lesson.id,
+                  })
+                }
+              >
+                <Plus className="w-4 h-4" />
+                Add Video
+              </ContextMenuItem>
+              <ContextMenuItem
                 onSelect={() => {
                   if (isGhostCourse) {
                     dispatch({

@@ -78,6 +78,79 @@ describe("createSegment", () => {
     }).pipe(Effect.provide(testLayer))
   );
 
+  it.effect("stores the provided title", () =>
+    Effect.gen(function* () {
+      yield* Effect.promise(() => makeVideo("video-1"));
+      const segmentOps = yield* SegmentOperationsService;
+
+      const segment = yield* segmentOps.createSegment(
+        "video-1",
+        "quest",
+        null,
+        "Closures"
+      );
+
+      expect(segment.title).toBe("Closures");
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect(
+    "inserts before the anchor segment when given beforeSegmentId",
+    () =>
+      Effect.gen(function* () {
+        yield* Effect.promise(() => makeVideo("video-1"));
+        const segmentOps = yield* SegmentOperationsService;
+
+        const first = yield* segmentOps.createSegment("video-1");
+        const third = yield* segmentOps.createSegment("video-1");
+        // Slot a new segment immediately before `third`.
+        const second = yield* segmentOps.createSegment(
+          "video-1",
+          "quest",
+          third.id
+        );
+
+        expect(compareOrderStrings(first.order, second.order)).toBeLessThan(0);
+        expect(compareOrderStrings(second.order, third.order)).toBeLessThan(0);
+
+        const listed = yield* segmentOps.listSegmentsByVideoId("video-1");
+        expect(listed.map((s) => s.id)).toEqual([
+          first.id,
+          second.id,
+          third.id,
+        ]);
+      }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("inserts at the front when the anchor is the first segment", () =>
+    Effect.gen(function* () {
+      yield* Effect.promise(() => makeVideo("video-1"));
+      const segmentOps = yield* SegmentOperationsService;
+
+      const first = yield* segmentOps.createSegment("video-1");
+      const zeroth = yield* segmentOps.createSegment(
+        "video-1",
+        "definition",
+        first.id
+      );
+
+      const listed = yield* segmentOps.listSegmentsByVideoId("video-1");
+      expect(listed.map((s) => s.id)).toEqual([zeroth.id, first.id]);
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("fails when beforeSegmentId does not exist", () =>
+    Effect.gen(function* () {
+      yield* Effect.promise(() => makeVideo("video-1"));
+      const segmentOps = yield* SegmentOperationsService;
+
+      const result = yield* segmentOps
+        .createSegment("video-1", "definition", "missing")
+        .pipe(Effect.either);
+      expect(result._tag).toBe("Left");
+    }).pipe(Effect.provide(testLayer))
+  );
+
   it.effect("scopes order to each video independently", () =>
     Effect.gen(function* () {
       yield* Effect.promise(() => makeVideo("video-1"));

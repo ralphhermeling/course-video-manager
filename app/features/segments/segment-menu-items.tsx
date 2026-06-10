@@ -5,7 +5,7 @@ import {
   ContextMenuSubContent,
   ContextMenuSubTrigger,
 } from "@/components/ui/context-menu";
-import { Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import {
   SEGMENT_KINDS,
   SEGMENT_KIND_DESCRIPTIONS,
@@ -56,7 +56,10 @@ export function AddSegmentSubMenu({
 }) {
   return (
     <ContextMenuSub>
-      <ContextMenuSubTrigger>Add segment</ContextMenuSubTrigger>
+      <ContextMenuSubTrigger>
+        <Plus className="w-4 h-4" />
+        Add segment
+      </ContextMenuSubTrigger>
       <ContextMenuSubContent>
         <SegmentKindMenuItems onSelect={onAdd} />
       </ContextMenuSubContent>
@@ -64,12 +67,16 @@ export function AddSegmentSubMenu({
   );
 }
 
-/** A Segment's own context menu: change kind (five choices) + delete. */
+/** A Segment's own context menu: change kind, add a neighbour (before/after) + delete. */
 export function SegmentContextMenuContent({
   onSetKind,
+  onAddBefore,
+  onAddAfter,
   onDelete,
 }: {
   onSetKind: (kind: SegmentKind) => void;
+  onAddBefore: (kind: SegmentKind) => void;
+  onAddAfter: (kind: SegmentKind) => void;
   onDelete: () => void;
 }) {
   return (
@@ -78,6 +85,25 @@ export function SegmentContextMenuContent({
         <ContextMenuSubTrigger>Change kind</ContextMenuSubTrigger>
         <ContextMenuSubContent>
           <SegmentKindMenuItems onSelect={onSetKind} />
+        </ContextMenuSubContent>
+      </ContextMenuSub>
+      <ContextMenuSeparator />
+      <ContextMenuSub>
+        <ContextMenuSubTrigger>
+          <Plus className="w-4 h-4" />
+          Add segment before
+        </ContextMenuSubTrigger>
+        <ContextMenuSubContent>
+          <SegmentKindMenuItems onSelect={onAddBefore} />
+        </ContextMenuSubContent>
+      </ContextMenuSub>
+      <ContextMenuSub>
+        <ContextMenuSubTrigger>
+          <Plus className="w-4 h-4" />
+          Add segment after
+        </ContextMenuSubTrigger>
+        <ContextMenuSubContent>
+          <SegmentKindMenuItems onSelect={onAddAfter} />
         </ContextMenuSubContent>
       </ContextMenuSub>
       <ContextMenuSeparator />

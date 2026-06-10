@@ -19,7 +19,14 @@ import {
 } from "./segment-kinds";
 import { SegmentContextMenuContent } from "./segment-menu-items";
 import { SegmentTitleEditor } from "./segment-title-editor";
-import { SegmentSortableList, SortableSegment } from "./segment-dnd-context";
+import {
+  SegmentDropLine,
+  SegmentSortableList,
+  SortableSegment,
+  useSegmentDropPreview,
+} from "./segment-dnd-context";
+import { useRequestCreateSegment } from "./create-segment-dialog";
+import { Fragment } from "react";
 
 type PitchSegment = {
   id: string;
@@ -42,6 +49,10 @@ export function PitchVideoSegments({
   submitEvent: (event: CourseEditorEvent) => void;
 }) {
   const segments = video.segments;
+  const requestCreateSegment = useRequestCreateSegment();
+  const dropPreview = useSegmentDropPreview();
+  const previewInThisVideo =
+    dropPreview?.targetVideoId === video.id ? dropPreview : null;
 
   return (
     <div className="space-y-1">
@@ -50,11 +61,21 @@ export function PitchVideoSegments({
         segmentIds={segments.map((s) => s.id)}
         className="space-y-0.5 min-h-[0.5rem]"
       >
-        {segments.map((segment) => (
-          <SortableSegment key={segment.id} id={segment.id}>
-            <SegmentRow segment={segment} submitEvent={submitEvent} />
-          </SortableSegment>
+        {segments.map((segment, index) => (
+          <Fragment key={segment.id}>
+            {previewInThisVideo?.beforeSegmentId === segment.id && (
+              <SegmentDropLine />
+            )}
+            <SortableSegment id={segment.id}>
+              <SegmentRow
+                segment={segment}
+                nextSegmentId={segments[index + 1]?.id ?? null}
+                submitEvent={submitEvent}
+              />
+            </SortableSegment>
+          </Fragment>
         ))}
+        {previewInThisVideo?.beforeSegmentId === null && <SegmentDropLine />}
       </SegmentSortableList>
 
       <DropdownMenu>
@@ -71,10 +92,10 @@ export function PitchVideoSegments({
               <DropdownMenuItem
                 key={kind}
                 onSelect={() =>
-                  submitEvent({
-                    type: "create-segment",
+                  requestCreateSegment({
                     videoId: video.id,
                     kind,
+                    beforeSegmentId: null,
                   })
                 }
               >
@@ -91,13 +112,16 @@ export function PitchVideoSegments({
 
 function SegmentRow({
   segment,
+  nextSegmentId,
   submitEvent,
 }: {
   segment: PitchSegment;
+  nextSegmentId: string | null;
   submitEvent: (event: CourseEditorEvent) => void;
 }) {
   const kind = segment.kind as SegmentKind;
   const Icon = SEGMENT_KIND_ICONS[kind];
+  const requestCreateSegment = useRequestCreateSegment();
 
   return (
     <ContextMenu>
@@ -127,6 +151,20 @@ function SegmentRow({
               type: "set-segment-kind",
               segmentId: segment.id,
               kind: nextKind,
+            })
+          }
+          onAddBefore={(kind) =>
+            requestCreateSegment({
+              videoId: segment.videoId,
+              kind,
+              beforeSegmentId: segment.id,
+            })
+          }
+          onAddAfter={(kind) =>
+            requestCreateSegment({
+              videoId: segment.videoId,
+              kind,
+              beforeSegmentId: nextSegmentId,
             })
           }
           onDelete={() =>

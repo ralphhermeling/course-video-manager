@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getVideoPath } from "@/lib/video-helpers";
 import { Loader2 } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { useFetcher } from "react-router";
 
 export function AddVideoModal(props: {
@@ -19,6 +20,20 @@ export function AddVideoModal(props: {
   onOpenChange: (open: boolean) => void;
 }) {
   const addVideoFetcher = useFetcher();
+
+  // No redirect fires on success anymore, so close the modal once the submit
+  // round-trip completes. Track that we actually submitted so a stale
+  // fetcher.data doesn't re-close the modal the next time it opens.
+  const didSubmit = useRef(false);
+  const { onOpenChange } = props;
+  useEffect(() => {
+    if (addVideoFetcher.state === "submitting") {
+      didSubmit.current = true;
+    } else if (addVideoFetcher.state === "idle" && didSubmit.current) {
+      didSubmit.current = false;
+      onOpenChange(false);
+    }
+  }, [addVideoFetcher.state, onOpenChange]);
 
   if (!props.open) return null;
 

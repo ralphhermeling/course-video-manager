@@ -7,6 +7,7 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragOverEvent,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -15,13 +16,45 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
-import type { ReactNode } from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
 import {
   computeSegmentDrop,
   segmentContainerId,
   type SegmentDndVideo,
   type SegmentDrop,
 } from "./segment-dnd";
+
+/**
+ * The live drop target during a Segment drag, broadcast so each Video's list
+ * can draw an insertion line at the landing spot. `null` when nothing is being
+ * dragged, or for a same-Video reorder (dnd-kit's sortable already shifts the
+ * siblings to preview that, so a line would double up).
+ */
+type SegmentDropPreview = {
+  targetVideoId: string;
+  beforeSegmentId: string | null;
+} | null;
+
+const SegmentDropContext = createContext<SegmentDropPreview>(null);
+
+function samePreview(a: SegmentDropPreview, b: SegmentDropPreview): boolean {
+  if (a === b) return true;
+  if (a === null || b === null) return false;
+  return (
+    a.targetVideoId === b.targetVideoId &&
+    a.beforeSegmentId === b.beforeSegmentId
+  );
+}
+
+/** The current cross-Video drop preview, or `null`. Safe to call with no provider. */
+export function useSegmentDropPreview(): SegmentDropPreview {
+  return useContext(SegmentDropContext);
+}
+
+/** Insertion indicator showing where a dragged Segment will land. */
+export function SegmentDropLine() {
+  return <div className="h-0.5 my-0.5 rounded-full bg-primary" />;
+}
 
 /**
  * One DndContext spanning a set of Videos, so Segments can be dragged to
@@ -42,7 +75,35 @@ export function SegmentDndProvider({
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
   );
 
+  const [preview, setPreview] = useState<SegmentDropPreview>(null);
+
+  const videoIdOfSegment = (segmentId: string) =>
+    videos.find((v) => v.segments.some((s) => s.id === segmentId))?.id ?? null;
+
+  const handleDragOver = (event: DragOverEvent) => {
+    const activeId = String(event.active.id);
+    const drop = computeSegmentDrop({
+      activeId,
+      overId: event.over ? String(event.over.id) : null,
+      videos,
+    });
+    // Only preview cross-Video moves; within a Video the sortable already shifts
+    // its siblings to show the gap.
+    const next: SegmentDropPreview =
+      drop && drop.targetVideoId !== videoIdOfSegment(activeId)
+        ? {
+            targetVideoId: drop.targetVideoId,
+            beforeSegmentId: drop.beforeSegmentId,
+          }
+        : null;
+    // onDragOver fires on every pointer move, but the landing spot rarely
+    // changes. Keep the previous reference when it hasn't, so React bails out
+    // instead of re-rendering every Video's segment list on each move.
+    setPreview((prev) => (samePreview(prev, next) ? prev : next));
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
+    setPreview(null);
     const drop = computeSegmentDrop({
       activeId: String(event.active.id),
       overId: event.over ? String(event.over.id) : null,
@@ -55,9 +116,13 @@ export function SegmentDndProvider({
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
+      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
+      onDragCancel={() => setPreview(null)}
     >
-      {children}
+      <SegmentDropContext.Provider value={preview}>
+        {children}
+      </SegmentDropContext.Provider>
     </DndContext>
   );
 }

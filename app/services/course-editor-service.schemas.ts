@@ -125,6 +125,8 @@ export const CourseEditorEventSchema = Schema.Union(
     type: Schema.Literal("create-segment"),
     videoId: nonEmptyString,
     kind: segmentKind,
+    title: Schema.optional(Schema.String),
+    beforeSegmentId: Schema.optional(Schema.NullOr(nonEmptyString)),
   }),
   Schema.Struct({
     type: Schema.Literal("rename-segment"),
