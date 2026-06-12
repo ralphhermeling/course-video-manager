@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   ArrowRightLeft,
   Combine,
+  Copy,
   Download,
   FolderOpen,
   PencilIcon,
@@ -157,6 +158,20 @@ export function VideoItem({
         >
           <PencilIcon className="w-4 h-4" />
           Rename
+        </ContextMenuItem>
+        <ContextMenuItem
+          onSelect={() => {
+            dispatch({
+              type: "open-copy-video",
+              videoId: video.id,
+              videoPath: video.path,
+              clipCount: video.clipCount,
+              segmentCount: video.segments.length,
+            });
+          }}
+        >
+          <Copy className="w-4 h-4" />
+          Copy Video
         </ContextMenuItem>
         <ContextMenuItem
           onSelect={() => {

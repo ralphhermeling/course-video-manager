@@ -1,6 +1,7 @@
 import { DuplicateCourseModal } from "@/components/duplicate-course-modal";
 import { PurgeExportsModal } from "@/components/purge-exports-modal";
 import { CopyTranscriptModal } from "@/components/copy-transcript-modal";
+import { CopyVideoModal } from "@/components/copy-video-modal";
 import { MoveVideoModal } from "@/components/move-video-modal";
 import { RenameCourseModal } from "@/components/rename-course-modal";
 import { RenameVideoModal } from "@/components/rename-video-modal";
@@ -374,6 +375,12 @@ export function RouteModals({
       videoId: string;
       videoPath: string;
     } | null;
+    copyVideoState: {
+      videoId: string;
+      videoPath: string;
+      clipCount: number;
+      segmentCount: number;
+    } | null;
     priorityFilter: number[];
     iconFilter: string[];
     fsStatusFilter: string | null;
@@ -526,6 +533,22 @@ export function RouteModals({
           }}
           onRename={() => {
             dispatch({ type: "close-rename-video" });
+          }}
+        />
+      )}
+
+      {viewState.copyVideoState && (
+        <CopyVideoModal
+          videoId={viewState.copyVideoState.videoId}
+          videoPath={viewState.copyVideoState.videoPath}
+          clipCount={viewState.copyVideoState.clipCount}
+          segmentCount={viewState.copyVideoState.segmentCount}
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) dispatch({ type: "close-copy-video" });
+          }}
+          onCopy={() => {
+            dispatch({ type: "close-copy-video" });
           }}
         />
       )}

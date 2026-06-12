@@ -11,6 +11,7 @@ import {
 } from "@/services/db-service-errors";
 import { and, asc, desc, eq, isNull, ne } from "drizzle-orm";
 import { Effect } from "effect";
+import { copyVideoImpl } from "@/services/db-video-operations.copy.server";
 
 const makeDbCall = <T>(fn: () => Promise<T>) => {
   return Effect.tryPromise({
@@ -336,6 +337,15 @@ export const createVideoOperations = (
         .set({ path: opts.path, updatedAt: new Date() })
         .where(eq(videos.id, opts.videoId))
     );
+  });
+
+  const copyVideo = Effect.fn("copyVideo")(function* (opts: {
+    sourceVideoId: string;
+    newPath: string;
+    copyClips: boolean;
+    copySegments: boolean;
+  }) {
+    return yield* copyVideoImpl(db, opts);
   });
 
   const updateVideoLesson = Effect.fn("updateVideoLesson")(function* (opts: {
@@ -668,6 +678,7 @@ export const createVideoOperations = (
     updateVideo,
     deleteVideo,
     updateVideoPath,
+    copyVideo,
     updateVideoLesson,
     updateVideoArchiveStatus,
     getNextVideoId,

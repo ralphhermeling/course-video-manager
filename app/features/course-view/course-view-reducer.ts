@@ -24,6 +24,13 @@ export namespace courseViewReducer {
     videoPath: string;
   } | null;
 
+  export type CopyVideoState = {
+    videoId: string;
+    videoPath: string;
+    clipCount: number;
+    segmentCount: number;
+  } | null;
+
   export type LessonSelection = {
     sectionId: string;
     lessonIds: Set<string>;
@@ -66,6 +73,7 @@ export namespace courseViewReducer {
     moveVideoState: MoveVideoState;
     moveLessonState: MoveLessonState;
     renameVideoState: RenameVideoState;
+    copyVideoState: CopyVideoState;
 
     // Lesson selection
     lessonSelection: LessonSelection;
@@ -148,6 +156,15 @@ export namespace courseViewReducer {
     // Rename video
     | { type: "open-rename-video"; videoId: string; videoPath: string }
     | { type: "close-rename-video" }
+    // Copy video
+    | {
+        type: "open-copy-video";
+        videoId: string;
+        videoPath: string;
+        clipCount: number;
+        segmentCount: number;
+      }
+    | { type: "close-copy-video" }
     // Lesson selection
     | {
         type: "select-lesson-only";
@@ -199,6 +216,7 @@ export function createInitialCourseViewState(): courseViewReducer.State {
     moveVideoState: null,
     moveLessonState: null,
     renameVideoState: null,
+    copyVideoState: null,
     lessonSelection: null,
     priorityFilter: [],
     iconFilter: [],
@@ -343,6 +361,20 @@ export const courseViewReducer: EffectReducer<
       };
     case "close-rename-video":
       return { ...state, renameVideoState: null };
+
+    // Copy video
+    case "open-copy-video":
+      return {
+        ...state,
+        copyVideoState: {
+          videoId: action.videoId,
+          videoPath: action.videoPath,
+          clipCount: action.clipCount,
+          segmentCount: action.segmentCount,
+        },
+      };
+    case "close-copy-video":
+      return { ...state, copyVideoState: null };
 
     // Lesson selection
     case "select-lesson-only":
