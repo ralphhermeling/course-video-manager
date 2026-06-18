@@ -29,7 +29,14 @@ import {
 } from "react";
 import { useCollapsedSections } from "@/features/course-view/use-collapsed-sections";
 import { readCookie, useCookieState } from "@/hooks/use-cookie-state";
-import { useFetcher, useNavigate, useSubmit } from "react-router";
+import {
+  useFetcher,
+  useNavigate,
+  useSearchParams,
+  useSubmit,
+} from "react-router";
+// Course-agent side panel. Opens via ?agentPanel; backend not yet wired (canned data).
+import { CourseAgentPanel } from "@/features/course-agent/course-agent-panel";
 import { useEffectReducer } from "use-effect-reducer";
 import type { Route } from "./+types/_app.courses.$courseId._index";
 import { UploadContext } from "@/features/upload-manager/upload-context";
@@ -98,6 +105,8 @@ export const loader = async (args: Route.LoaderArgs) => {
 
 export default function Component(props: Route.ComponentProps) {
   const navigate = useNavigate();
+  // PROTOTYPE (#6) — search-param-driven course-agent panel. Remove when resolved.
+  const [searchParams, setSearchParams] = useSearchParams();
   const selectedCourseId = props.params.courseId;
   const loaderData = props.loaderData;
 
@@ -483,6 +492,21 @@ export default function Component(props: Route.ComponentProps) {
           report={divergenceReport}
           onClose={clearDivergenceReport}
         />
+
+        {/* Course-agent side panel. Dev-only until the agent-loop backend is wired. */}
+        {!import.meta.env.PROD && searchParams.has("agentPanel") && (
+          <CourseAgentPanel
+            onClose={() =>
+              setSearchParams(
+                (prev) => {
+                  prev.delete("agentPanel");
+                  return prev;
+                },
+                { replace: true, preventScrollReset: true }
+              )
+            }
+          />
+        )}
       </div>
     </GenerateChaptersProvider>
   );
