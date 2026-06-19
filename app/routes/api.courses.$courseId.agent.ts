@@ -2,6 +2,10 @@ import { runtimeLive } from "@/services/layer.server";
 import { buildVfsForCourse } from "@/services/vfs/vfs-loader.server";
 import { normalizePath, vfsLs, vfsTree, vfsCat, vfsGrep } from "@/services/vfs";
 import {
+  SEGMENT_KINDS,
+  SEGMENT_KIND_DESCRIPTIONS,
+} from "@/features/segments/segment-kinds";
+import {
   ToolLoopAgent as Agent,
   convertToModelMessages,
   type UIMessage,
@@ -16,6 +20,10 @@ const requestSchema = Schema.Struct({
   messages: Schema.Any,
   versionId: Schema.optional(Schema.String),
 });
+
+const SEGMENT_KIND_GLOSSARY = SEGMENT_KINDS.map(
+  (kind) => `\`${kind}\` (${SEGMENT_KIND_DESCRIPTIONS[kind].toLowerCase()})`
+).join(", ");
 
 const SYSTEM_PROMPT = (
   anchor: string
@@ -45,6 +53,15 @@ const SYSTEM_PROMPT = (
               segments.json
               timeline.json
 \`\`\`
+
+## Domain glossary
+These terms name what you see in the VFS — keep them distinct:
+- \`Ghost\` (\`[ghost]\` in listings, \`fsStatus: "ghost"\`, or section \`real: false\`): exists in planning but not yet recorded — nothing on disk. A ghost lesson is still a full workspace: it can own videos, segments, and a timeline. It is planned, not empty.
+- \`Segment\` (\`segments.json\`): one unit of the video's *plan*, written *before* recording. Segments are the *intended* structure. Each has a \`kind\` — the film-time job it does: ${SEGMENT_KIND_GLOSSARY}.
+- \`Chapter\` (a \`chapter\` item in \`timeline.json\`): a named divider in the *recorded* timeline that groups clips; maps 1:1 to a YouTube chapter. A chapter is not a segment — a segment is the plan, a chapter is what was actually shot.
+- \`Clip\` (a \`clip\` item in \`timeline.json\`): one span of recorded footage with its transcript \`text\`.
+- \`segments.json\` is the pre-recording plan; \`timeline.json\` is the recorded video (clips and chapters interleaved in play order). Two separate views: "what I planned to shoot" vs "what I shot".
+- \`authoringStatus\` (\`todo\`/\`done\`): how far a real lesson has progressed.
 
 ## Guidelines
 - Use \`ls\` to list a directory, \`tree\` for a recursive overview, \`cat\` to read a file, and \`grep\` to search
