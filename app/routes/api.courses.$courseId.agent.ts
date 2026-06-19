@@ -176,7 +176,7 @@ export const action = async (args: {
     );
 
     const agent = new Agent({
-      model: anthropic("claude-haiku-4-5"),
+      model: anthropic("claude-sonnet-4-5"),
       instructions: SYSTEM_PROMPT(anchor),
       tools: { ls: lsTool, tree: treeTool, cat: catTool, grep: grepTool },
     });
