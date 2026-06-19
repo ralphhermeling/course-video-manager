@@ -35,7 +35,13 @@ import {
   useSearchParams,
   useSubmit,
 } from "react-router";
-import { CourseAgentPanel } from "@/features/course-agent/course-agent-panel";
+import {
+  CourseAgentSidebar,
+  AgentOpenAffordance,
+  AgentOpenSwitcher,
+  AgentHeaderButton,
+  parseAgentOpen,
+} from "@/features/course-agent/course-agent-sidebar.prototype";
 import { useEffectReducer } from "use-effect-reducer";
 import type { Route } from "./+types/_app.courses.$courseId._index";
 import { UploadContext } from "@/features/upload-manager/upload-context";
@@ -271,251 +277,276 @@ export default function Component(props: Route.ComponentProps) {
     dispatch({ type: "prune-lesson-selection", currentLessonIds });
   }, [displaySections, dispatch]);
 
+  const agentPanelOpen = searchParams.has("agentPanel");
+  const agentOpenVariant = parseAgentOpen(searchParams.get("agentOpen"));
+  const openAgentPanel = () =>
+    setSearchParams(
+      (prev) => {
+        prev.set("agentPanel", "true");
+        return prev;
+      },
+      { replace: true, preventScrollReset: true }
+    );
+  const closeAgentPanel = () =>
+    setSearchParams(
+      (prev) => {
+        prev.delete("agentPanel");
+        return prev;
+      },
+      { replace: true, preventScrollReset: true }
+    );
+
   return (
     <GenerateChaptersProvider>
-      <div className="flex-1 flex flex-col bg-background text-foreground">
-        <div className="flex-1 overflow-y-auto">
-          <div className="p-6">
-            {currentCourse ? (
-              <>
-                {/* Title + version + actions */}
-                <div className="flex items-center gap-2 mb-2">
-                  <h1 className="text-2xl font-bold flex items-center gap-2">
-                    {currentCourse.name}
-                    {loaderData.selectedVersion &&
-                      loaderData.versions.length > 1 && (
-                        <button
-                          onClick={() =>
-                            dispatch({
-                              type: "set-version-selector-modal-open",
-                              open: true,
-                            })
-                          }
-                          className="text-muted-foreground hover:text-foreground transition-colors text-lg font-normal"
-                        >
-                          [{loaderData.selectedVersion.name || "Draft"}]
-                        </button>
-                      )}
-                  </h1>
-                  <ActionsDropdown
-                    currentCourse={currentCourse}
-                    data={loaderData}
-                    dispatch={dispatch}
-                    archiveCourseFetcher={archiveCourseFetcher}
-                    gitPushFetcher={gitPushFetcher}
-                    handleBatchExport={handleBatchExport}
-                    onOpenAgentPanel={() =>
-                      setSearchParams(
-                        (prev) => {
-                          prev.set("agentPanel", "true");
-                          return prev;
-                        },
-                        { replace: true, preventScrollReset: true }
-                      )
-                    }
-                  />
-                  {courseWarningCount > 0 && (
-                    <span
-                      title={`${courseWarningCount} video warning${courseWarningCount === 1 ? "" : "s"}`}
-                      className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 px-2 py-1 text-xs font-medium text-amber-600 dark:text-amber-400"
-                    >
-                      <AlertTriangle className="w-3 h-3" />
-                      {courseWarningCount} warning
-                      {courseWarningCount === 1 ? "" : "s"}
-                    </span>
-                  )}
-                </div>
-
-                {loaderData.selectedVersion && !loaderData.isLatestVersion && (
-                  <ReadOnlyBanner />
-                )}
-
-                <div className="mb-10">
-                  <StatsBar
-                    selectedCourse={currentCourse}
-                    gitStatus={loaderData.gitStatus}
-                  />
-                </div>
-
+      {/* two-column shell: content reflows, agent sidebar takes the right */}
+      <div className="flex flex-1 min-h-0">
+        <div className="flex flex-1 min-w-0 flex-col bg-background text-foreground">
+          <div className="flex-1 overflow-y-auto">
+            <div className="p-6">
+              {currentCourse ? (
                 <>
-                  {loaderData.isLatestVersion && (
-                    <div className="mb-14">
-                      <NextTodoCard
-                        sections={displaySections}
-                        data={loaderData}
-                        navigate={navigate}
-                        addVideoToLessonId={addVideoToLessonId}
-                        convertToGhostLessonId={convertToGhostLessonId}
-                        deleteLessonId={deleteLessonId}
-                        createOnDiskLessonId={createOnDiskLessonId}
-                        editDescriptionLessonId={editDescriptionLessonId}
-                        dispatch={dispatch}
-                        submitEvent={submitEvent}
-                        startExportUpload={startExportUpload}
-                        revealVideoFetcher={revealVideoFetcher}
-                        deleteVideoFileFetcher={deleteVideoFileFetcher}
-                        submitDeleteVideo={submitDeleteVideo}
-                        allFlatLessons={allFlatLessons}
-                        dependencyMap={dependencyMap}
-                        dismissed={nextUpDismissed}
-                        onDismiss={() => setNextUpDismissed(true)}
-                      />
-                    </div>
-                  )}
-
-                  <div className="mb-4">
-                    <h2 className="text-lg font-semibold mb-3">All Lessons</h2>
-                    <FilterBar
-                      priorityFilter={priorityFilter}
-                      iconFilter={iconFilter}
-                      fsStatusFilter={fsStatusFilter}
-                      fsStatusCounts={fsStatusCounts}
-                      searchQuery={searchQuery}
-                      viewMode={viewMode}
-                      onToggleViewMode={() =>
-                        setViewMode(
-                          viewMode === "expanded" ? "compact" : "expanded"
-                        )
-                      }
-                      allSectionsCollapsed={allSectionsCollapsed}
-                      onToggleAllSections={handleToggleAllSections}
-                      sectionCount={sectionIds.length}
+                  {/* Title + version + actions */}
+                  <div className="flex items-center gap-2 mb-2">
+                    <h1 className="text-2xl font-bold flex items-center gap-2">
+                      {currentCourse.name}
+                      {loaderData.selectedVersion &&
+                        loaderData.versions.length > 1 && (
+                          <button
+                            onClick={() =>
+                              dispatch({
+                                type: "set-version-selector-modal-open",
+                                open: true,
+                              })
+                            }
+                            className="text-muted-foreground hover:text-foreground transition-colors text-lg font-normal"
+                          >
+                            [{loaderData.selectedVersion.name || "Draft"}]
+                          </button>
+                        )}
+                    </h1>
+                    <ActionsDropdown
+                      currentCourse={currentCourse}
+                      data={loaderData}
                       dispatch={dispatch}
-                      isRealCourse={currentCourse?.filePath != null}
+                      archiveCourseFetcher={archiveCourseFetcher}
+                      gitPushFetcher={gitPushFetcher}
+                      handleBatchExport={handleBatchExport}
+                      onOpenAgentPanel={openAgentPanel}
+                    />
+                    {!agentPanelOpen && agentOpenVariant === "header" && (
+                      <AgentHeaderButton onOpen={openAgentPanel} />
+                    )}
+                    {courseWarningCount > 0 && (
+                      <span
+                        title={`${courseWarningCount} video warning${courseWarningCount === 1 ? "" : "s"}`}
+                        className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 px-2 py-1 text-xs font-medium text-amber-600 dark:text-amber-400"
+                      >
+                        <AlertTriangle className="w-3 h-3" />
+                        {courseWarningCount} warning
+                        {courseWarningCount === 1 ? "" : "s"}
+                      </span>
+                    )}
+                  </div>
+
+                  {loaderData.selectedVersion &&
+                    !loaderData.isLatestVersion && <ReadOnlyBanner />}
+
+                  <div className="mb-10">
+                    <StatsBar
+                      selectedCourse={currentCourse}
+                      gitStatus={loaderData.gitStatus}
                     />
                   </div>
 
-                  <SectionGrid
-                    currentCourse={currentCourse}
-                    data={loaderData}
-                    isGhostCourse={!currentCourse?.filePath}
-                    viewMode={viewMode}
-                    sensors={sensors}
-                    handleSectionDragEnd={handleSectionDragEnd}
-                    priorityFilter={priorityFilter}
-                    iconFilter={iconFilter}
-                    fsStatusFilter={fsStatusFilter}
-                    searchQuery={searchQuery}
-                    addGhostLessonSectionId={addGhostLessonSectionId}
-                    insertAdjacentLessonId={insertAdjacentLessonId}
-                    insertPosition={insertPosition}
-                    editSectionId={editSectionId}
-                    addVideoToLessonId={addVideoToLessonId}
-                    convertToGhostLessonId={convertToGhostLessonId}
-                    deleteLessonId={deleteLessonId}
-                    createOnDiskLessonId={createOnDiskLessonId}
-                    editDescriptionLessonId={editDescriptionLessonId}
-                    archiveSectionId={archiveSectionId}
-                    collapsedSections={collapsedSections}
-                    toggleSection={toggleSection}
-                    lessonSelection={lessonSelection}
-                    dispatch={dispatch}
-                    submitEvent={submitEvent}
-                    navigate={navigate}
-                    startExportUpload={startExportUpload}
-                    revealVideoFetcher={revealVideoFetcher}
-                    deleteVideoFileFetcher={deleteVideoFileFetcher}
-                    submitDeleteVideo={submitDeleteVideo}
-                  />
+                  <>
+                    {loaderData.isLatestVersion && (
+                      <div className="mb-14">
+                        <NextTodoCard
+                          sections={displaySections}
+                          data={loaderData}
+                          navigate={navigate}
+                          addVideoToLessonId={addVideoToLessonId}
+                          convertToGhostLessonId={convertToGhostLessonId}
+                          deleteLessonId={deleteLessonId}
+                          createOnDiskLessonId={createOnDiskLessonId}
+                          editDescriptionLessonId={editDescriptionLessonId}
+                          dispatch={dispatch}
+                          submitEvent={submitEvent}
+                          startExportUpload={startExportUpload}
+                          revealVideoFetcher={revealVideoFetcher}
+                          deleteVideoFileFetcher={deleteVideoFileFetcher}
+                          submitDeleteVideo={submitDeleteVideo}
+                          allFlatLessons={allFlatLessons}
+                          dependencyMap={dependencyMap}
+                          dismissed={nextUpDismissed}
+                          onDismiss={() => setNextUpDismissed(true)}
+                        />
+                      </div>
+                    )}
+
+                    <div className="mb-4">
+                      <h2 className="text-lg font-semibold mb-3">
+                        All Lessons
+                      </h2>
+                      <FilterBar
+                        priorityFilter={priorityFilter}
+                        iconFilter={iconFilter}
+                        fsStatusFilter={fsStatusFilter}
+                        fsStatusCounts={fsStatusCounts}
+                        searchQuery={searchQuery}
+                        viewMode={viewMode}
+                        onToggleViewMode={() =>
+                          setViewMode(
+                            viewMode === "expanded" ? "compact" : "expanded"
+                          )
+                        }
+                        allSectionsCollapsed={allSectionsCollapsed}
+                        onToggleAllSections={handleToggleAllSections}
+                        sectionCount={sectionIds.length}
+                        dispatch={dispatch}
+                        isRealCourse={currentCourse?.filePath != null}
+                      />
+                    </div>
+
+                    <SectionGrid
+                      currentCourse={currentCourse}
+                      data={loaderData}
+                      isGhostCourse={!currentCourse?.filePath}
+                      viewMode={viewMode}
+                      sensors={sensors}
+                      handleSectionDragEnd={handleSectionDragEnd}
+                      priorityFilter={priorityFilter}
+                      iconFilter={iconFilter}
+                      fsStatusFilter={fsStatusFilter}
+                      searchQuery={searchQuery}
+                      addGhostLessonSectionId={addGhostLessonSectionId}
+                      insertAdjacentLessonId={insertAdjacentLessonId}
+                      insertPosition={insertPosition}
+                      editSectionId={editSectionId}
+                      addVideoToLessonId={addVideoToLessonId}
+                      convertToGhostLessonId={convertToGhostLessonId}
+                      deleteLessonId={deleteLessonId}
+                      createOnDiskLessonId={createOnDiskLessonId}
+                      editDescriptionLessonId={editDescriptionLessonId}
+                      archiveSectionId={archiveSectionId}
+                      collapsedSections={collapsedSections}
+                      toggleSection={toggleSection}
+                      lessonSelection={lessonSelection}
+                      dispatch={dispatch}
+                      submitEvent={submitEvent}
+                      navigate={navigate}
+                      startExportUpload={startExportUpload}
+                      revealVideoFetcher={revealVideoFetcher}
+                      deleteVideoFileFetcher={deleteVideoFileFetcher}
+                      submitDeleteVideo={submitDeleteVideo}
+                    />
+
+                    {loaderData.selectedVersion &&
+                      loaderData.isLatestVersion && (
+                        <div className="mt-8 flex justify-center">
+                          <Button
+                            variant="outline"
+                            className="border-dashed"
+                            onClick={() =>
+                              dispatch({
+                                type: "set-create-section-modal-open",
+                                open: true,
+                              })
+                            }
+                          >
+                            <Plus className="w-4 h-4" />
+                            Add Section
+                          </Button>
+                        </div>
+                      )}
+                  </>
 
                   {loaderData.selectedVersion && loaderData.isLatestVersion && (
-                    <div className="mt-8 flex justify-center">
-                      <Button
-                        variant="outline"
-                        className="border-dashed"
-                        onClick={() =>
-                          dispatch({
-                            type: "set-create-section-modal-open",
-                            open: true,
-                          })
-                        }
-                      >
-                        <Plus className="w-4 h-4" />
-                        Add Section
-                      </Button>
-                    </div>
+                    <CreateSectionModal
+                      repoVersionId={loaderData.selectedVersion.id}
+                      maxOrder={displaySections.length}
+                      open={isCreateSectionModalOpen}
+                      onOpenChange={(open) =>
+                        dispatch({
+                          type: "set-create-section-modal-open",
+                          open,
+                        })
+                      }
+                      onCreateSection={(title) => {
+                        const maxOrder = displaySections.reduce(
+                          (max, s) => Math.max(max, s.order ?? 0),
+                          0
+                        );
+                        submitEvent({
+                          type: "create-section",
+                          repoVersionId: loaderData.selectedVersion!.id,
+                          title,
+                          maxOrder,
+                          ...(insertAdjacentSectionId
+                            ? {
+                                adjacentSectionId: insertAdjacentSectionId,
+                                position: insertSectionPosition ?? undefined,
+                              }
+                            : {}),
+                        });
+                      }}
+                    />
                   )}
                 </>
-
-                {loaderData.selectedVersion && loaderData.isLatestVersion && (
-                  <CreateSectionModal
-                    repoVersionId={loaderData.selectedVersion.id}
-                    maxOrder={displaySections.length}
-                    open={isCreateSectionModalOpen}
-                    onOpenChange={(open) =>
-                      dispatch({ type: "set-create-section-modal-open", open })
-                    }
-                    onCreateSection={(title) => {
-                      const maxOrder = displaySections.reduce(
-                        (max, s) => Math.max(max, s.order ?? 0),
-                        0
-                      );
-                      submitEvent({
-                        type: "create-section",
-                        repoVersionId: loaderData.selectedVersion!.id,
-                        title,
-                        maxOrder,
-                        ...(insertAdjacentSectionId
-                          ? {
-                              adjacentSectionId: insertAdjacentSectionId,
-                              position: insertSectionPosition ?? undefined,
-                            }
-                          : {}),
-                      });
-                    }}
-                  />
-                )}
-              </>
-            ) : (
-              <div className="text-center py-12">
-                <h1 className="text-xl font-semibold mb-2">Course not found</h1>
-                <p className="text-muted-foreground">
-                  This course may have been archived or deleted.
-                </p>
-              </div>
-            )}
+              ) : (
+                <div className="text-center py-12">
+                  <h1 className="text-xl font-semibold mb-2">
+                    Course not found
+                  </h1>
+                  <p className="text-muted-foreground">
+                    This course may have been archived or deleted.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
+
+          <VideoModal
+            videoId={videoPlayerState.videoId}
+            videoPath={videoPlayerState.videoPath}
+            isOpen={videoPlayerState.isOpen}
+            onClose={() => {
+              dispatch({ type: "close-video-player" });
+            }}
+          />
+
+          <RouteModals
+            currentCourse={currentCourse}
+            data={loaderData}
+            selectedCourseId={selectedCourseId}
+            viewState={viewState}
+            dispatch={dispatch}
+            navigate={navigate}
+          />
+
+          <DivergenceReportModal
+            report={divergenceReport}
+            onClose={clearDivergenceReport}
+          />
         </div>
 
-        <VideoModal
-          videoId={videoPlayerState.videoId}
-          videoPath={videoPlayerState.videoPath}
-          isOpen={videoPlayerState.isOpen}
-          onClose={() => {
-            dispatch({ type: "close-video-player" });
-          }}
-        />
-
-        <RouteModals
-          currentCourse={currentCourse}
-          data={loaderData}
-          selectedCourseId={selectedCourseId}
-          viewState={viewState}
-          dispatch={dispatch}
-          navigate={navigate}
-        />
-
-        <DivergenceReportModal
-          report={divergenceReport}
-          onClose={clearDivergenceReport}
-        />
-
-        {searchParams.has("agentPanel") && (
-          <CourseAgentPanel
+        {agentPanelOpen && (
+          <CourseAgentSidebar
             courseId={selectedCourseId!}
             versionId={searchParams.get("versionId") ?? undefined}
-            onClose={() =>
-              setSearchParams(
-                (prev) => {
-                  prev.delete("agentPanel");
-                  return prev;
-                },
-                { replace: true, preventScrollReset: true }
-              )
-            }
+            onClose={closeAgentPanel}
           />
         )}
       </div>
+      {!agentPanelOpen && (
+        <>
+          <AgentOpenAffordance
+            variant={agentOpenVariant}
+            onOpen={openAgentPanel}
+          />
+          <AgentOpenSwitcher current={agentOpenVariant} />
+        </>
+      )}
     </GenerateChaptersProvider>
   );
 }

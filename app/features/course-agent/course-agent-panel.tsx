@@ -91,10 +91,14 @@ export function CourseAgentPanel({
   courseId,
   versionId,
   onClose,
+  embedded = false,
 }: {
   courseId: string;
   versionId?: string;
   onClose: () => void;
+  // When true, the panel fills its parent (no fixed/overlay chrome) so a
+  // surrounding shell can own the frame. Used by the sidebar layout.
+  embedded?: boolean;
 }) {
   const [threads, setThreads] = useState<StoredThread[]>(() => {
     const stored = loadThreads(courseId);
@@ -246,7 +250,14 @@ export function CourseAgentPanel({
   const isStreaming = status === "streaming" || status === "submitted";
 
   return (
-    <div className="fixed right-4 top-4 bottom-4 z-40 flex w-[400px] flex-col rounded-xl border border-border bg-card text-foreground shadow-2xl">
+    <div
+      className={cn(
+        "flex flex-col bg-card text-foreground",
+        embedded
+          ? "h-full w-full"
+          : "fixed right-4 top-4 bottom-4 z-40 w-[400px] rounded-xl border border-border shadow-2xl"
+      )}
+    >
       {/* header: thread switcher + token pill + close */}
       <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
         <div className="relative">
