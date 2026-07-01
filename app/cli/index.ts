@@ -8,6 +8,7 @@ import { clipCommand } from "./commands/clip";
 import { segmentCommand } from "./commands/segment";
 import { pitchCommand } from "./commands/pitch";
 import { deliverableCommand } from "./commands/deliverable";
+import { searchCommand } from "./commands/search";
 
 /**
  * Top-level `cvm --help` text. This is a DOMAIN-TEACHING document — keep it in
@@ -60,7 +61,13 @@ WRITES ('segment' only)
   positional <id> (a flag after it exits 3). See 'cvm segment --help'.
 
 NOUNS
-  course version section lesson video clip segment pitch deliverable`;
+  course version section lesson video clip segment pitch deliverable
+
+SEARCH
+  search <query>   Case-insensitive substring search DOWN THE TREE across every
+                   active course's Draft Version + all pitches (--type to narrow
+                   result kinds). Scoped variants: 'cvm course|section|lesson
+                   search <id> <query>' confine the walk to that subtree.`;
 
 /**
  * The root `cvm` command. Each noun command lives at app/cli/commands/<noun>.ts
@@ -79,5 +86,6 @@ export const rootCommand = Command.make("cvm").pipe(
     segmentCommand,
     pitchCommand,
     deliverableCommand,
+    searchCommand,
   ])
 );
