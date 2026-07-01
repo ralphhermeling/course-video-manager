@@ -8,6 +8,7 @@ import { clipCommand } from "./commands/clip";
 import { segmentCommand } from "./commands/segment";
 import { pitchCommand } from "./commands/pitch";
 import { deliverableCommand } from "./commands/deliverable";
+import { searchCommand } from "./commands/search";
 
 /**
  * Top-level `cvm --help` text. This is a DOMAIN-TEACHING document — keep it in
@@ -15,7 +16,12 @@ import { deliverableCommand } from "./commands/deliverable";
  * the domain model, addressing, and version conventions; each noun/verb adds
  * its own ubiquitous-language help.
  */
-const ROOT_HELP = `cvm — read-only access to this Course Video Manager project's domain data, for AGENT consumption.
+const ROOT_HELP = `cvm — agent-facing access to this Course Video Manager project's domain data.
+
+Read-mostly: every noun is READ-ONLY except 'segment', which is the first
+write-capable noun (segment add/update/move/delete author a Video's Segment
+plan). More nouns may gain writes over time; each verb's own --help is
+authoritative about whether it reads or writes.
 
 DOMAIN MODEL
   A Course is the primary entity. Its structure is snapshotted into Course
@@ -48,8 +54,20 @@ OUTPUT CONTRACT
   Errors => a JSON object on STDERR carrying the Effect error _tag. STDOUT is
   always pure data. Exit codes: 0 ok, 2 not-found, 3 invalid-input, 4 db/internal.
 
+WRITES ('segment' only)
+  'segment add/update/move/delete' author a Video's Segment plan. Writes hit the
+  database immediately — no confirmation prompt, no dry-run. Each write echoes
+  the affected row (delete echoes the archived row). Flags come BEFORE the
+  positional <id> (a flag after it exits 3). See 'cvm segment --help'.
+
 NOUNS
-  course version section lesson video clip segment pitch deliverable`;
+  course version section lesson video clip segment pitch deliverable
+
+SEARCH
+  search <query>   Case-insensitive substring search DOWN THE TREE across every
+                   active course's Draft Version + all pitches (--type to narrow
+                   result kinds). Scoped variants: 'cvm course|section|lesson
+                   search <id> <query>' confine the walk to that subtree.`;
 
 /**
  * The root `cvm` command. Each noun command lives at app/cli/commands/<noun>.ts
@@ -68,5 +86,6 @@ export const rootCommand = Command.make("cvm").pipe(
     segmentCommand,
     pitchCommand,
     deliverableCommand,
+    searchCommand,
   ])
 );

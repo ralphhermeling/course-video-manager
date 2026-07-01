@@ -9,6 +9,7 @@ import { ClipOperationsService } from "@/services/db-clip-operations.server";
 import { SegmentOperationsService } from "@/services/db-segment-operations.server";
 import { PitchOperationsService } from "@/services/db-pitch-operations.server";
 import { DeliverableOperationsService } from "@/services/db-deliverable-operations.server";
+import { SearchOperationsService } from "@/services/db-search-operations.server";
 import {
   createTestDb,
   truncateAllTables,
@@ -40,6 +41,7 @@ let cliTestLayer: Layer.Layer<
   | SegmentOperationsService
   | PitchOperationsService
   | DeliverableOperationsService
+  | SearchOperationsService
 >;
 
 // Mirror app/cli/layer.ts `cliLayer`, which uses `provideMerge` so the runtime
@@ -55,7 +57,8 @@ const buildLayerFor = (db: TestDb) =>
     ClipOperationsService.Default,
     SegmentOperationsService.Default,
     PitchOperationsService.Default,
-    DeliverableOperationsService.Default
+    DeliverableOperationsService.Default,
+    SearchOperationsService.Default
   ).pipe(Layer.provideMerge(Layer.succeed(DrizzleService, db as any)));
 
 interface RunResult {
@@ -411,6 +414,55 @@ describe("output contract: NDJSON / single object / empty", () => {
     expect(rows.map((r) => r.id).sort()).toEqual(
       [s.lessonVideoId, s.standaloneActiveId].sort()
     );
+  });
+});
+
+// ===========================================================================
+// Uniform `name` on list output
+// ===========================================================================
+
+describe("uniform display name on every list", () => {
+  const nameOf = (stdout: string) =>
+    (ndjson(stdout) as { id: string; name: string | null }[]).map((r) => [
+      r.id,
+      r.name,
+    ]);
+
+  it("section list carries name mirroring path", async () => {
+    const { stdout, exitCode } = await run([
+      "section",
+      "list",
+      "--course",
+      s.courseAId,
+    ]);
+    expect(exitCode).toBe(0);
+    expect(nameOf(stdout)).toContainEqual([s.draftSectionId, "01-intro"]);
+  });
+
+  it("lesson list carries name = title", async () => {
+    const { stdout, exitCode } = await run([
+      "lesson",
+      "list",
+      "--section",
+      s.draftSectionId,
+    ]);
+    expect(exitCode).toBe(0);
+    expect(nameOf(stdout)).toContainEqual([s.lessonId, "Welcome"]);
+  });
+
+  it("video list carries name mirroring path", async () => {
+    const { stdout, exitCode } = await run(["video", "list"]);
+    expect(exitCode).toBe(0);
+    expect(nameOf(stdout)).toContainEqual([
+      s.standaloneActiveId,
+      "standalone-active.mp4",
+    ]);
+  });
+
+  it("pitch list carries name = title (the noun the report was about)", async () => {
+    const { stdout, exitCode } = await run(["pitch", "list"]);
+    expect(exitCode).toBe(0);
+    expect(nameOf(stdout)).toContainEqual([s.pitchActiveId, "Active pitch"]);
   });
 });
 
@@ -783,5 +835,646 @@ describe("tree skeleton + depth", () => {
     const videoNode = tree.children[0].children[0].children[0];
     expect(videoNode.kind).toBe("video");
     expect(videoNode.id).toBe(s.lessonVideoId);
+  });
+});
+
+// ===========================================================================
+// search
+// ===========================================================================
+
+describe("search", () => {
+  it("matches a course by name, case-insensitively", async () => {
+    const { stdout, stderr, exitCode } = await run(["search", "alpha"]);
+    expect(exitCode).toBe(0);
+    expect(stderr).toBe("");
+    const hits = ndjson(stdout) as any[];
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({
+      kind: "course",
+      id: s.courseAId,
+      courseId: s.courseAId,
+      name: "Alpha",
+      field: "name",
+    });
+  });
+
+  it("matches a video's transcript (clip text) and returns the VIDEO", async () => {
+    const { stdout, exitCode } = await run(["search", "hello"]);
+    expect(exitCode).toBe(0);
+    const hits = ndjson(stdout) as any[];
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({
+      kind: "video",
+      id: s.lessonVideoId,
+      lessonId: s.lessonId,
+      courseId: s.courseAId,
+      field: "transcript",
+    });
+    expect(hits[0].snippet).toContain("hello");
+  });
+
+  it("matches a video's transcript via a chapter name", async () => {
+    const { stdout } = await run(["search", "Chapter One"]);
+    const hits = ndjson(stdout) as any[];
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({
+      kind: "video",
+      id: s.lessonVideoId,
+      field: "transcript",
+    });
+  });
+
+  it("path beats transcript for a video's field label", async () => {
+    const { stdout } = await run(["search", "intro"]);
+    const hits = ndjson(stdout) as any[];
+    const video = hits.find((h) => h.kind === "video");
+    expect(video).toMatchObject({ id: s.lessonVideoId, field: "path" });
+  });
+
+  it("streams hits in depth-first tree order, one per entity", async () => {
+    // "intro" matches section "01-intro" and video "intro.mp4".
+    const { stdout } = await run(["search", "intro"]);
+    const hits = ndjson(stdout) as any[];
+    expect(hits.map((h) => h.kind)).toEqual(["section", "video"]);
+    expect(hits[0].id).toBe(s.draftSectionId);
+    expect(hits[1].id).toBe(s.lessonVideoId);
+  });
+
+  it("matches an active segment but excludes archived segments", async () => {
+    const { stdout } = await run(["search", "segment"]);
+    const hits = ndjson(stdout) as any[];
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({ kind: "segment", title: "Active segment" });
+  });
+
+  it("matches an active pitch (top-level only) and excludes archived pitches", async () => {
+    const { stdout } = await run(["search", "pitch"]);
+    const hits = ndjson(stdout) as any[];
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({ kind: "pitch", id: s.pitchActiveId });
+  });
+
+  it("never returns archived clips / lessons / sections", async () => {
+    // "deleted" lives only in archived rows (clip text, lesson path/title, section).
+    const { stdout, exitCode } = await run(["search", "deleted"]);
+    expect(exitCode).toBe(0);
+    expect(stdout).toBe("");
+  });
+
+  it("searches the Draft version only (published-version section excluded)", async () => {
+    // "00-old" is a section that exists only in the published version.
+    const { stdout, exitCode } = await run(["search", "00-old"]);
+    expect(exitCode).toBe(0);
+    expect(stdout).toBe("");
+  });
+
+  it("--type narrows result kinds", async () => {
+    const only = await run(["search", "--type", "course", "alpha"]);
+    expect((ndjson(only.stdout) as any[]).map((h) => h.kind)).toEqual([
+      "course",
+    ]);
+    // "alpha" appears in no video, so a video-only filter finds nothing.
+    const none = await run(["search", "--type", "video", "alpha"]);
+    expect(none.exitCode).toBe(0);
+    expect(none.stdout).toBe("");
+  });
+
+  it("empty / whitespace query => exit 3 ParseError", async () => {
+    for (const q of ["", "   "]) {
+      const { stderr, exitCode } = await run(["search", q]);
+      expect(exitCode).toBe(3);
+      expect(JSON.parse(stderr)._tag).toBe("ParseError");
+    }
+  });
+
+  it("unknown --type => exit 3 ParseError", async () => {
+    const { stderr, exitCode } = await run(["search", "--type", "bogus", "x"]);
+    expect(exitCode).toBe(3);
+    expect(JSON.parse(stderr)._tag).toBe("ParseError");
+  });
+
+  it("no matches => no output, exit 0", async () => {
+    const { stdout, stderr, exitCode } = await run(["search", "zzz-nomatch"]);
+    expect(exitCode).toBe(0);
+    expect(stdout).toBe("");
+    expect(stderr).toBe("");
+  });
+
+  describe("scoped: course / section / lesson", () => {
+    it("course search confines the walk to that course's subtree", async () => {
+      const { stdout } = await run(["course", "search", s.courseAId, "intro"]);
+      const hits = ndjson(stdout) as any[];
+      expect(hits.map((h) => h.kind)).toEqual(["section", "video"]);
+    });
+
+    it("section search includes the root section and its descendants", async () => {
+      const { stdout } = await run([
+        "section",
+        "search",
+        s.draftSectionId,
+        "intro",
+      ]);
+      const hits = ndjson(stdout) as any[];
+      expect(hits.map((h) => h.kind)).toEqual(["section", "video"]);
+    });
+
+    it("section search cannot reach the course above it", async () => {
+      const { stdout, exitCode } = await run([
+        "section",
+        "search",
+        s.draftSectionId,
+        "alpha",
+      ]);
+      expect(exitCode).toBe(0);
+      expect(stdout).toBe("");
+    });
+
+    it("lesson search finds a transcript hit in its subtree", async () => {
+      const { stdout } = await run(["lesson", "search", s.lessonId, "hello"]);
+      const hits = ndjson(stdout) as any[];
+      expect(hits).toHaveLength(1);
+      expect(hits[0]).toMatchObject({ kind: "video", id: s.lessonVideoId });
+    });
+
+    it("rejects an out-of-scope --type (exit 3)", async () => {
+      const { stderr, exitCode } = await run([
+        "lesson",
+        "search",
+        "--type",
+        "section",
+        s.lessonId,
+        "x",
+      ]);
+      expect(exitCode).toBe(3);
+      expect(JSON.parse(stderr)._tag).toBe("ParseError");
+    });
+
+    it("rejects --type pitch under a course (exit 3)", async () => {
+      const { exitCode, stderr } = await run([
+        "course",
+        "search",
+        "--type",
+        "pitch",
+        s.courseAId,
+        "x",
+      ]);
+      expect(exitCode).toBe(3);
+      expect(JSON.parse(stderr)._tag).toBe("ParseError");
+    });
+
+    it("unknown scope id => exit 2 NotFoundError", async () => {
+      const { stderr, exitCode } = await run([
+        "course",
+        "search",
+        "does-not-exist",
+        "x",
+      ]);
+      expect(exitCode).toBe(2);
+      const err = JSON.parse(stderr);
+      expect(err._tag).toBe("NotFoundError");
+      expect(err.entity).toBe("course");
+    });
+
+    it("archived scope root => exit 2 NotFoundError", async () => {
+      const { exitCode } = await run([
+        "course",
+        "search",
+        s.courseBArchivedId,
+        "x",
+      ]);
+      expect(exitCode).toBe(2);
+    });
+
+    it("archived section root => exit 2 NotFoundError", async () => {
+      const { stderr, exitCode } = await run([
+        "section",
+        "search",
+        s.archivedSectionId,
+        "x",
+      ]);
+      expect(exitCode).toBe(2);
+      const err = JSON.parse(stderr);
+      expect(err._tag).toBe("NotFoundError");
+      expect(err.entity).toBe("section");
+    });
+
+    it("archived lesson root => exit 2 NotFoundError", async () => {
+      const { stderr, exitCode } = await run([
+        "lesson",
+        "search",
+        s.archivedLessonId,
+        "x",
+      ]);
+      expect(exitCode).toBe(2);
+      const err = JSON.parse(stderr);
+      expect(err._tag).toBe("NotFoundError");
+      expect(err.entity).toBe("lesson");
+    });
+  });
+
+  describe("literal matching: SQL wildcards are escaped", () => {
+    it("treats % and _ as literals in a transcript search", async () => {
+      await testDb.insert(schema.clips).values({
+        videoId: s.lessonVideoId,
+        videoFilename: "pct.mp4",
+        sourceStartTime: 30,
+        sourceEndTime: 40,
+        order: "0005",
+        text: "save 50% today",
+      });
+
+      const literal = await run(["search", "50%"]);
+      const litHits = ndjson(literal.stdout) as any[];
+      expect(litHits.some((h) => h.kind === "video")).toBe(true);
+
+      // "50_" would match "50%" if _ were a wildcard; escaped, it must not.
+      const escaped = await run(["search", "50_"]);
+      expect(escaped.stdout).toBe("");
+    });
+  });
+
+  describe("snippet windowing", () => {
+    it("excerpts a long transcript with ellipses around the match", async () => {
+      const long = `${"lorem ipsum ".repeat(20)}NEEDLE${" dolor sit ".repeat(20)}`;
+      await testDb.insert(schema.clips).values({
+        videoId: s.lessonVideoId,
+        videoFilename: "long.mp4",
+        sourceStartTime: 40,
+        sourceEndTime: 50,
+        order: "0006",
+        text: long,
+      });
+
+      const { stdout } = await run(["search", "NEEDLE"]);
+      const hit = (ndjson(stdout) as any[]).find(
+        (h) => h.kind === "video" && h.field === "transcript"
+      );
+      expect(hit.snippet).toContain("NEEDLE");
+      expect(hit.snippet.startsWith("…")).toBe(true);
+      expect(hit.snippet.endsWith("…")).toBe(true);
+      expect(hit.snippet.length).toBeLessThan(long.length);
+    });
+
+    it("locates a match whose query contains a run of whitespace", async () => {
+      // The match sits after a long pad; `matches`/ILIKE compare the raw text
+      // (two spaces), but the snippet is drawn from a whitespace-collapsed copy.
+      // The needle must be collapsed too, else the snippet falls back to a
+      // misleading prefix that omits the actual match.
+      const text = `${"pad ".repeat(30)}alpha  beta ${"tail ".repeat(30)}`;
+      await testDb.insert(schema.clips).values({
+        videoId: s.lessonVideoId,
+        videoFilename: "spaced.mp4",
+        sourceStartTime: 50,
+        sourceEndTime: 60,
+        order: "0007",
+        text,
+      });
+
+      const { stdout } = await run(["search", "alpha  beta"]);
+      const hit = (ndjson(stdout) as any[]).find(
+        (h) => h.kind === "video" && h.field === "transcript"
+      );
+      // Snippet is centred on the collapsed match, not the head of the text.
+      expect(hit.snippet).toContain("alpha beta");
+      expect(hit.snippet.startsWith("…")).toBe(true);
+    });
+  });
+});
+
+// ===========================================================================
+// segment writes: add / update / move / delete (the first write-capable noun)
+// ===========================================================================
+
+describe("segment writes (add / update / move / delete)", () => {
+  interface Seg {
+    id: string;
+    videoId: string;
+    kind: string;
+    title: string;
+    description: string;
+    order: string;
+    archived: boolean;
+  }
+  /** Parse a write verb's single pretty-printed JSON object. */
+  const obj = (stdout: string): Seg => JSON.parse(stdout) as Seg;
+  const list = async (videoId: string): Promise<Seg[]> =>
+    ndjson(
+      (await run(["segment", "list", "--video", videoId])).stdout
+    ) as Seg[];
+  const add = async (videoId: string, ...args: string[]): Promise<Seg> =>
+    obj((await run(["segment", "add", "--video", videoId, ...args])).stdout);
+  // A fresh, empty standalone video (segment `order` values must be real
+  // fractional-index keys; the seed's "0001" segment cannot be anchored to).
+  const freshVideo = async (path: string): Promise<string> => {
+    const [v] = await testDb
+      .insert(schema.videos)
+      .values({ path, originalFootagePath: "f.mp4" })
+      .returning();
+    return v!.id;
+  };
+
+  it("add appends to the end with defaults, echoing the created row", async () => {
+    const { stdout, stderr, exitCode } = await run([
+      "segment",
+      "add",
+      "--video",
+      s.standaloneActiveId,
+    ]);
+    expect(exitCode).toBe(0);
+    expect(stderr).toBe("");
+    // Single pretty-printed JSON object (not NDJSON).
+    expect(stdout).toMatch(/^\{\n/);
+    const seg = obj(stdout);
+    expect(seg.videoId).toBe(s.standaloneActiveId);
+    expect(seg.kind).toBe("definition");
+    expect(seg.title).toBe("");
+    expect(seg.description).toBe("");
+    expect(seg.archived).toBe(false);
+    expect(typeof seg.id).toBe("string");
+    expect(typeof seg.order).toBe("string");
+    expect((await list(s.standaloneActiveId)).map((r) => r.id)).toEqual([
+      seg.id,
+    ]);
+  });
+
+  it("add accepts --kind, --title and --description atomically", async () => {
+    const seg = await add(
+      s.standaloneActiveId,
+      "--kind",
+      "quest",
+      "--title",
+      "Try it",
+      "--description",
+      "note here"
+    );
+    expect(seg.kind).toBe("quest");
+    expect(seg.title).toBe("Try it");
+    expect(seg.description).toBe("note here");
+  });
+
+  it("add --before inserts immediately before the anchor", async () => {
+    const anchor = await add(s.standaloneActiveId, "--title", "Anchor");
+    const seg = await add(
+      s.standaloneActiveId,
+      "--title",
+      "Before",
+      "--before",
+      anchor.id
+    );
+    expect((await list(s.standaloneActiveId)).map((r) => r.id)).toEqual([
+      seg.id,
+      anchor.id,
+    ]);
+  });
+
+  it("add --after inserts immediately after the anchor", async () => {
+    const anchor = await add(s.standaloneActiveId, "--title", "Anchor");
+    const seg = await add(s.standaloneActiveId, "--after", anchor.id);
+    expect((await list(s.standaloneActiveId)).map((r) => r.id)).toEqual([
+      anchor.id,
+      seg.id,
+    ]);
+  });
+
+  it("add with both --before and --after => invalid input, exit 3", async () => {
+    const anchor = await add(s.standaloneActiveId, "--title", "Anchor");
+    const { stdout, stderr, exitCode } = await run([
+      "segment",
+      "add",
+      "--video",
+      s.standaloneActiveId,
+      "--before",
+      anchor.id,
+      "--after",
+      anchor.id,
+    ]);
+    expect(exitCode).toBe(3);
+    expect(stdout).toBe("");
+    expect((JSON.parse(stderr.trim()) as { _tag: string })._tag).toBe(
+      "ParseError"
+    );
+  });
+
+  it("add --before an unknown segment id => NotFoundError, exit 2", async () => {
+    const { stdout, stderr, exitCode } = await run([
+      "segment",
+      "add",
+      "--video",
+      s.standaloneActiveId,
+      "--before",
+      "seg_missing",
+    ]);
+    expect(exitCode).toBe(2);
+    expect(stdout).toBe("");
+    const err = JSON.parse(stderr.trim()) as { _tag: string; entity: string };
+    expect(err._tag).toBe("NotFoundError");
+    expect(err.entity).toBe("segment");
+  });
+
+  it("update patches only the fields passed, preserving the rest", async () => {
+    const created = await add(
+      s.standaloneActiveId,
+      "--title",
+      "Orig",
+      "--description",
+      "d0"
+    );
+    const updated = obj(
+      (
+        await run([
+          "segment",
+          "update",
+          "--title",
+          "New",
+          "--kind",
+          "walkthrough",
+          created.id,
+        ])
+      ).stdout
+    );
+    expect(updated.id).toBe(created.id);
+    expect(updated.title).toBe("New");
+    expect(updated.kind).toBe("walkthrough");
+    expect(updated.description).toBe("d0"); // untouched
+  });
+
+  it("update never repositions or changes the segment's video", async () => {
+    const a = await add(s.standaloneActiveId, "--title", "A");
+    const b = await add(s.standaloneActiveId, "--title", "B");
+    const updated = obj(
+      (await run(["segment", "update", "--title", "A2", a.id])).stdout
+    );
+    expect(updated.videoId).toBe(a.videoId); // same parent video
+    expect(updated.order).toBe(a.order); // same position key
+    expect((await list(s.standaloneActiveId)).map((r) => r.id)).toEqual([
+      a.id,
+      b.id,
+    ]); // plan order preserved
+  });
+
+  it("update with no fields => invalid input, exit 3", async () => {
+    const created = await add(s.standaloneActiveId);
+    const { stdout, stderr, exitCode } = await run([
+      "segment",
+      "update",
+      created.id,
+    ]);
+    expect(exitCode).toBe(3);
+    expect(stdout).toBe("");
+    expect((JSON.parse(stderr.trim()) as { _tag: string })._tag).toBe(
+      "ParseError"
+    );
+  });
+
+  it("update with a bogus --kind => invalid input, exit 3", async () => {
+    const created = await add(s.standaloneActiveId);
+    const { exitCode } = await run([
+      "segment",
+      "update",
+      "--kind",
+      "bogus",
+      created.id,
+    ]);
+    expect(exitCode).toBe(3);
+  });
+
+  it("update an unknown id => NotFoundError, exit 2", async () => {
+    const { stdout, stderr, exitCode } = await run([
+      "segment",
+      "update",
+      "--title",
+      "x",
+      "seg_missing",
+    ]);
+    expect(exitCode).toBe(2);
+    expect(stdout).toBe("");
+    const err = JSON.parse(stderr.trim()) as { _tag: string; entity: string };
+    expect(err._tag).toBe("NotFoundError");
+    expect(err.entity).toBe("segment");
+  });
+
+  it("delete archives the segment, echoes archived:true, hides it from list", async () => {
+    const created = await add(s.standaloneActiveId, "--title", "Doomed");
+    const del = obj((await run(["segment", "delete", created.id])).stdout);
+    expect(del.id).toBe(created.id);
+    expect(del.archived).toBe(true);
+    expect((await list(s.standaloneActiveId)).map((r) => r.id)).not.toContain(
+      created.id
+    );
+  });
+
+  it("delete an unknown id => NotFoundError, exit 2", async () => {
+    const { stdout, stderr, exitCode } = await run([
+      "segment",
+      "delete",
+      "seg_missing",
+    ]);
+    expect(exitCode).toBe(2);
+    expect(stdout).toBe("");
+    expect((JSON.parse(stderr.trim()) as { entity: string }).entity).toBe(
+      "segment"
+    );
+  });
+
+  it("any write on an already-deleted segment => NotFoundError, exit 2", async () => {
+    const created = await add(s.standaloneActiveId);
+    await run(["segment", "delete", created.id]);
+    expect(
+      (await run(["segment", "update", "--title", "x", created.id])).exitCode
+    ).toBe(2);
+    expect((await run(["segment", "delete", created.id])).exitCode).toBe(2);
+    expect(
+      (
+        await run([
+          "segment",
+          "move",
+          "--video",
+          s.standaloneActiveId,
+          created.id,
+        ])
+      ).exitCode
+    ).toBe(2);
+  });
+
+  it("move reorders within the same video (--after)", async () => {
+    const a = await add(s.standaloneActiveId, "--title", "A");
+    const b = await add(s.standaloneActiveId, "--title", "B");
+    expect((await list(s.standaloneActiveId)).map((r) => r.id)).toEqual([
+      a.id,
+      b.id,
+    ]);
+    const moved = obj(
+      (
+        await run([
+          "segment",
+          "move",
+          "--video",
+          s.standaloneActiveId,
+          "--after",
+          b.id,
+          a.id,
+        ])
+      ).stdout
+    );
+    expect(moved.id).toBe(a.id);
+    expect(moved.videoId).toBe(s.standaloneActiveId);
+    expect((await list(s.standaloneActiveId)).map((r) => r.id)).toEqual([
+      b.id,
+      a.id,
+    ]);
+  });
+
+  it("move relocates a segment into another video (append at end)", async () => {
+    const target = await freshVideo("seg-writes-target.mp4");
+    const existing = await add(target, "--title", "Existing target segment");
+    const seg = await add(s.standaloneActiveId, "--title", "Movable");
+    const moved = obj(
+      (await run(["segment", "move", "--video", target, seg.id])).stdout
+    );
+    expect(moved.videoId).toBe(target);
+    expect((await list(s.standaloneActiveId)).map((r) => r.id)).not.toContain(
+      seg.id
+    );
+    const dst = await list(target);
+    expect(dst.map((r) => r.id)).toEqual([existing.id, seg.id]); // appended at end
+  });
+
+  it("move with both --before and --after => invalid input, exit 3", async () => {
+    const anchor = await add(s.standaloneActiveId, "--title", "Anchor");
+    const seg = await add(s.standaloneActiveId, "--title", "Movable");
+    const { stdout, stderr, exitCode } = await run([
+      "segment",
+      "move",
+      "--video",
+      s.standaloneActiveId,
+      "--before",
+      anchor.id,
+      "--after",
+      anchor.id,
+      seg.id,
+    ]);
+    expect(exitCode).toBe(3);
+    expect(stdout).toBe("");
+    expect((JSON.parse(stderr.trim()) as { _tag: string })._tag).toBe(
+      "ParseError"
+    );
+  });
+
+  it("move --before an id not in the target video => NotFoundError, exit 2", async () => {
+    const seg = await add(s.standaloneActiveId);
+    const { stdout, stderr, exitCode } = await run([
+      "segment",
+      "move",
+      "--video",
+      s.standaloneActiveId,
+      "--before",
+      "seg_missing",
+      seg.id,
+    ]);
+    expect(exitCode).toBe(2);
+    expect(stdout).toBe("");
+    expect((JSON.parse(stderr.trim()) as { entity: string }).entity).toBe(
+      "segment"
+    );
   });
 });
